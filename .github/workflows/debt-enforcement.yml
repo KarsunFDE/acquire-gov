@@ -1,0 +1,53 @@
+name: debt-enforcement
+
+# Mechanical enforcement of the 12 deliberate brownfield-debt items.
+# Spec: fde-10-week/pipeline/T27-debt-enforcement-spec.md
+# Source of truth: docs/debt-lockfile.yml
+#
+# Runs in parallel with ci.yml's build-test job. Fails the PR if:
+#   - A locked debt item's locked-failing test starts passing without
+#     the lockfile being updated.
+#   - Lockfile is mutated without the `debt-touch-approved` label.
+#   - PR template's debt-touch checkbox state contradicts the lockfile diff.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  enforce-debt-locks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need base ref for lockfile diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install tooling
+        run: pip install pyyaml
+
+      - name: Verify lockfile schema
+        run: python .github/scripts/verify-debt-lockfile.py docs/debt-lockfile.yml
+
+      - name: Check PR-template / lockfile-diff consistency
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels) }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python .github/scripts/verify-pr-debt-checkbox.py
+
+      - name: Run locked failing tests — must remain failing
+        run: .github/scripts/run-locked-tests.sh docs/debt-lockfile.yml

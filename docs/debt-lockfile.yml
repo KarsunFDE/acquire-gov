@@ -1,0 +1,137 @@
+# Brownfield-debt lockfile — mechanical enforcement of preserved debt
+#
+# Spec: see fde-10-week/pipeline/T27-debt-enforcement-spec.md
+# Ground truth for items + modernization weeks: docs/brownfield-debt.md
+#
+# Each item: `locked: true` means the locked-failing test for this item MUST
+# remain in the failing-tests list. Flipping `locked: true` -> `false` in a
+# PR requires the `debt-touch-approved` GitHub label (instructor only).
+#
+# Test paths point to where the locked-failing test lives (or will live —
+# tests authored iter-12 of the cohort#1 prep loop).
+
+version: 1
+schema_url: https://github.com/KarsunFDE/acquire-gov/blob/main/.github/scripts/verify-debt-lockfile.py
+last_unlock_event: null   # set by CI on each lockfile mutation; PR number + ts + items
+
+items:
+  - id: 1
+    name: jwt-signature-skip
+    locked: true
+    scheduled_unlock_week: W4-Wed
+    teaching_anchor: OWASP-LLM07-08-AI-Security-Day
+    test_marker: brownfield_debt_1
+    test_path: services/api-gateway/src/test/java/com/karsunfde/acquiregov/gateway/JwtSignatureSkipDebtTest.java
+    debt_doc_ref: docs/brownfield-debt.md#item-1
+    fixed_looks_like: "All routes through same JWT validation; skip filter deleted."
+
+  - id: 2
+    name: audit-log-race
+    locked: true
+    scheduled_unlock_week: W3-multi-agent-or-W5-Wed
+    teaching_anchor: HITL-audit-trail + AIOps-governance
+    test_marker: brownfield_debt_2
+    test_path: services/solicitation-service/src/test/java/com/karsunfde/acquiregov/solicitation/AuditLogRaceDebtTest.java
+    debt_doc_ref: docs/brownfield-debt.md#item-2
+    fixed_looks_like: "Audit write inside the same @Transactional boundary; outbox pattern preferred."
+
+  - id: 3
+    name: missing-circuit-breaker
+    locked: true
+    scheduled_unlock_week: W4-Thu
+    teaching_anchor: reliability-engineering
+    test_marker: brownfield_debt_3
+    test_path: services/evaluation-service/src/test/java/com/karsunfde/acquiregov/evaluation/CircuitBreakerDebtTest.java
+    debt_doc_ref: docs/brownfield-debt.md#item-3
+    fixed_looks_like: "Resilience4j circuit breaker + fallback + timeout; idempotency keys."
+
+  - id: 4
+    name: no-structured-output-validation
+    locked: true
+    scheduled_unlock_week: W1-Fri
+    teaching_anchor: LLM-Essentials-Day-2-output-validation
+    test_marker: brownfield_debt_4
+    test_path: services/ai-orchestrator/tests/test_structured_output_debt.py
+    debt_doc_ref: docs/brownfield-debt.md#item-4
+    fixed_looks_like: "Pydantic DraftResponse with strict mode; Bedrock raw response parsed + re-emitted."
+
+  - id: 5
+    name: pre-v1-langchain-patterns
+    locked: true
+    scheduled_unlock_week: W2-Mon
+    teaching_anchor: RAG-Architecture-week-anchor
+    test_marker: brownfield_debt_5
+    test_path: services/ai-orchestrator/tests/test_legacy_chain_debt.py
+    debt_doc_ref: docs/brownfield-debt.md#item-5
+    fixed_looks_like: "All LLMChain + .run() rewritten as composed Runnables; legacy_chain.py deleted."
+
+  - id: 6
+    name: inconsistent-correlation-ids
+    locked: true
+    scheduled_unlock_week: W1-Tue-or-W5-Tue
+    teaching_anchor: structured-logging + OTel
+    test_marker: brownfield_debt_6
+    test_path: tests/integration/test_correlation_ids_debt.py
+    debt_doc_ref: docs/brownfield-debt.md#item-6
+    fixed_looks_like: "All services emit W3C traceparent; OTel context propagation auto-instrumented."
+
+  - id: 7
+    name: unused-pinecone-client
+    locked: true
+    scheduled_unlock_week: W2-Mon
+    teaching_anchor: Atlas-Vector-Search-introduction
+    test_marker: brownfield_debt_7
+    test_path: services/ai-orchestrator/tests/test_unused_deps_debt.py
+    debt_doc_ref: docs/brownfield-debt.md#item-7
+    fixed_looks_like: "Line removed from requirements.txt."
+
+  - id: 8
+    name: frontend-hardcoded-service-url
+    locked: true
+    scheduled_unlock_week: W4-Tue
+    teaching_anchor: API-modernization-patterns
+    test_marker: brownfield_debt_8
+    test_path: frontend/src/app/components/solicitation-list/solicitation-list.component.debt.spec.ts
+    debt_doc_ref: docs/brownfield-debt.md#item-8
+    fixed_looks_like: "All API calls route through environment.apiGatewayUrl."
+
+  - id: 9
+    name: no-owasp-input-sanitization
+    locked: true
+    scheduled_unlock_week: W4-Wed
+    teaching_anchor: AI-Security-Day-prompt-injection-via-stored-content
+    test_marker: brownfield_debt_9
+    test_path: services/solicitation-service/src/test/java/com/karsunfde/acquiregov/solicitation/InputSanitizationDebtTest.java
+    debt_doc_ref: docs/brownfield-debt.md#item-9
+    fixed_looks_like: "Jsoup allow-list sanitization on write; output-encoding on read."
+
+  - id: 10
+    name: no-multi-tenant-boundary
+    locked: true
+    scheduled_unlock_week: W2-Wed
+    teaching_anchor: multi-tenant-retrieval-boundary
+    test_marker: brownfield_debt_10
+    test_path: services/solicitation-service/src/test/java/com/karsunfde/acquiregov/solicitation/MultiTenantBoundaryDebtTest.java
+    debt_doc_ref: docs/brownfield-debt.md#item-10
+    fixed_looks_like: "Every repository method filters by agency_id; tenant from JWT."
+
+  - id: 11
+    name: dockerfile-latest-tags
+    locked: true
+    scheduled_unlock_week: W4-Wed
+    teaching_anchor: OWASP-LLM03-Supply-Chain
+    test_marker: brownfield_debt_11
+    test_path: .github/scripts/check-dockerfile-latest.sh
+    debt_doc_ref: docs/brownfield-debt.md#item-11
+    fixed_looks_like: "Every base image pinned to specific tag + SHA256 digest."
+    notes: "ai-orchestrator already pinned (python:3.11-slim) — pre-existing teaching artefact. Locked-test checks the OTHER 4 Dockerfiles."
+
+  - id: 12
+    name: gha-lint-disabled
+    locked: true
+    scheduled_unlock_week: W4-Tue
+    teaching_anchor: spec-driven-dev-discovery
+    test_marker: brownfield_debt_12
+    test_path: .github/scripts/check-lint-disabled.sh
+    debt_doc_ref: docs/brownfield-debt.md#item-12
+    fixed_looks_like: "Lint step uncommented; ruff + checkstyle + eslint run on every PR."
