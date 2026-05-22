@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # In dev we use a local mock issuer; in prod this points at the
+          # production OIDC issuer. The JWKS is fetched from $JWT_ISSUER_URI/.well-known/jwks.json
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8090/auth}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  # ⚠ DELIBERATE — Item 6: api-gateway logs X-Request-ID (other services use different keys).
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [X-Request-ID=%X{X-Request-ID:-}] %logger{36} - %msg%n"
+  level:
+    com.karsunfde.acquiregov: INFO
+    org.springframework.security: INFO

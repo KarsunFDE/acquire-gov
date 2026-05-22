@@ -1,0 +1,26 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: evaluation-service
+
+solicitation:
+  service:
+    url: ${SOLICITATION_SERVICE_URL:http://solicitation-service:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  # ⚠ DELIBERATE — Item 6: evaluation-service uses traceId.
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [traceId=%X{traceId:-}] %logger{36} - %msg%n"
+  level:
+    com.karsunfde.acquiregov: INFO

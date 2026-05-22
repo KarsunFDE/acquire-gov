@@ -1,0 +1,32 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: solicitation-service
+  data:
+    mongodb:
+      uri: ${MONGO_URL:mongodb://app:app_dev_password@localhost:27017}
+      database: ${MONGO_DB:acquire_gov}
+      auto-index-creation: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8090/auth}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  # ⚠ DELIBERATE — Item 6: solicitation-service uses correlationId (not X-Request-ID).
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [correlationId=%X{correlationId:-}] %logger{36} - %msg%n"
+  level:
+    com.karsunfde.acquiregov: INFO
