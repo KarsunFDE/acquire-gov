@@ -1,0 +1,32 @@
+# acquire-gov — ai-orchestrator deps
+#
+# ⚠ DELIBERATE BROWNFIELD DEBT:
+#   - Item 5 — legacy_chain.py uses pre-v1.0 LangChain LLMChain pattern;
+#     v1.0 composed-Runnable pattern lives in main.py. Cohort consolidates
+#     in W2.
+#   - Item 7 — pinecone-client listed below but no code imports it.
+#     Aspirational from a prior failed migration. Atlas Vector Search work
+#     in W2 replaces all vector work; cohort removes the dead import.
+
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# LangChain v1.0+ (composed-Runnable style); legacy LLMChain still available.
+langchain==0.3.7
+langchain-core==0.3.15
+langchain-aws==0.2.7
+
+# Bedrock / AWS
+boto3==1.35.49
+
+# Datastores / future RAG
+pymongo==4.10.1
+
+# Schemas
+pydantic==2.9.2
+
+# ⚠ Item 7 — listed but never imported. Cohort removes in W2.
+pinecone-client==5.0.1
+
+# Form upload support for future endpoints
+python-multipart==0.0.12
