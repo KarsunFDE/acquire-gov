@@ -40,6 +40,15 @@
     </dependency>
     <!-- DELIBERATE: no spring-boot-starter-validation imported. The cohort
          adds it in W4 Wed when they sanitize input (Item 9). -->
+
+    <!-- Test scope only. Brings JUnit Jupiter, Mockito, AssertJ.
+         Required by T27 brownfield-debt locked-failing tests (items 2, 9, 10).
+         Spec: fde-10-week/pipeline/T27-debt-enforcement-spec.md -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
