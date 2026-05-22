@@ -86,9 +86,10 @@ surfaces the fix**, and **what "fixed" looks like**.
 
 ## Item 11 — Dockerfiles use `:latest`
 
-- **Where:** Every `Dockerfile` in the repo — `services/api-gateway/Dockerfile`, `services/solicitation-service/Dockerfile`, `services/evaluation-service/Dockerfile`, `services/ai-orchestrator/Dockerfile`, `frontend/Dockerfile`.
-- **How found:** `grep -rn "FROM.*:latest" .`
+- **Where:** Most Dockerfiles — `services/api-gateway/Dockerfile`, `services/solicitation-service/Dockerfile`, `services/evaluation-service/Dockerfile`, and `frontend/Dockerfile` (which uses *two* — `node:latest` for build, `nginx:latest` for runtime). `services/ai-orchestrator/Dockerfile` was originally `FROM python:latest` and was hand-pinned to `python:3.11-slim` in 2026-Q1 after numpy/pydantic-core wheels broke on Python 3.14 — the comment block at the top of that Dockerfile documents the incident.
+- **How found:** `grep -rn "FROM.*:latest" .` returns 5 lines across 4 Dockerfiles.
 - **Surfaces in:** W4 Wed AI Security Engineering Day (OWASP LLM03 Supply Chain).
+- **Teaching moment:** The python-pin is itself a teachable artefact — `:latest` *eventually* breaks, and the ai-orchestrator Dockerfile is the receipt. Cohort question: "if the python image had to be pinned to keep the stack building, why are the other four still on `:latest`?"
 - **Fixed looks like:** Every base image pinned to a specific tag and SHA256 digest; Renovate/Dependabot configured.
 
 ## Item 12 — GHA workflow disables linting

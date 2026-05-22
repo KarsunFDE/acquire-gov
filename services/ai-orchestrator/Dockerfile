@@ -1,5 +1,10 @@
-# ⚠ DELIBERATE BROWNFIELD DEBT — Item 11
-FROM python:latest
+# ⚠ NOTE: this Dockerfile was originally `FROM python:latest` — see Item 11
+# in docs/brownfield-debt.md. It was hand-pinned to 3.11 in 2026-Q1 after
+# numpy/pydantic-core wheels broke on python 3.14. The OTHER Dockerfiles
+# (api-gateway, solicitation-service, evaluation-service, frontend) still
+# carry the :latest debt. Cohort finds those in W4 Wed AI Security
+# Engineering Day (OWASP LLM03 Supply Chain).
+FROM python:3.11-slim
 
 WORKDIR /app
 

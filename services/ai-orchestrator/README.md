@@ -33,6 +33,6 @@ uvicorn app.main:app --reload --port 8000
   each use a different key; this one has none).
 - **Item 7** — `pinecone-client` in `requirements.txt`, no `import pinecone`
   anywhere.
-- **Item 11** — `Dockerfile` uses `FROM python:latest`.
+- **Item 11 (partial)** — `Dockerfile` was originally `FROM python:latest`; pinned to `python:3.11-slim` in 2026-Q1 after numpy/pydantic-core wheels broke on 3.14. The OTHER 4 Dockerfiles (api-gateway, solicitation-service, evaluation-service, frontend) still carry `:latest`. Cohort finds those.
 
 See `docs/brownfield-debt.md` for the full inventory.
