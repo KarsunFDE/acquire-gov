@@ -1,0 +1,36 @@
+# acquire-gov — deploy workflow (stub)
+#
+# ⚠ DELIBERATE BROWNFIELD DEBT — Item 12 reinforcement
+#   This workflow has OIDC-to-AWS wired up but doesn't actually deploy
+#   anything. The "deploy" step echoes what it would do. Cohort discovers
+#   when they push a "deploy" and prod doesn't change.
+
+name: deploy
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  id-token: write   # OIDC to AWS
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::000000000000:role/acquire-gov-deploy
+          aws-region: us-east-1
+
+      - name: Deploy (stub)
+        run: |
+          echo "Would deploy here."
+          echo "TODO(karsunfde): wire up ECR push + ECS service update + Bedrock model access verify."
+          echo "Currently this workflow runs green but changes nothing in prod."

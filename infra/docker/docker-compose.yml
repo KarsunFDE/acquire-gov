@@ -1,0 +1,117 @@
+# acquire-gov — local dev orchestration
+#
+# ⚠ DELIBERATE BROWNFIELD DEBT (cross-references docs/brownfield-debt.md):
+#   - postgres data volume NOT mounted (data lost on restart) — Item 11 reinforcement
+#   - no healthchecks on any service — Item 11 reinforcement
+#   - service images use :latest (Item 11)
+#
+# Bring up the full stack:
+#   docker-compose -f infra/docker/docker-compose.yml up --build
+#
+# Endpoints once up:
+#   http://localhost:8080         — api-gateway
+#   http://localhost:8081         — solicitation-service (direct)
+#   http://localhost:8082         — evaluation-service (direct)
+#   http://localhost:8000         — ai-orchestrator
+#   http://localhost:4200         — Angular SPA
+#   localhost:5432                — postgres
+#   localhost:27017               — mongodb
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: acquire_gov
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app_dev_password
+    ports:
+      - "5432:5432"
+    # ⚠ DELIBERATE: no volume mount. Restart = data loss.
+    # Cohort fixes in W1 Tue inventory follow-up.
+
+  mongodb:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: app
+      MONGO_INITDB_ROOT_PASSWORD: app_dev_password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db   # ← inconsistency vs postgres — teaching moment
+
+  api-gateway:
+    build:
+      context: ../../services/api-gateway
+    image: acquire-gov/api-gateway:latest   # ⚠ Item 11
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_ISSUER_URI: http://localhost:8090/auth
+      SOLICITATION_SERVICE_URL: http://solicitation-service:8081
+      EVALUATION_SERVICE_URL: http://evaluation-service:8082
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8000
+    depends_on:
+      - solicitation-service
+      - evaluation-service
+      - ai-orchestrator
+    # ⚠ no healthcheck
+
+  solicitation-service:
+    build:
+      context: ../../services/solicitation-service
+    image: acquire-gov/solicitation-service:latest   # ⚠ Item 11
+    ports:
+      - "8081:8081"
+    environment:
+      MONGO_URL: mongodb://app:app_dev_password@mongodb:27017
+      MONGO_DB: acquire_gov
+      AI_ORCHESTRATOR_URL: http://ai-orchestrator:8000
+      JWT_ISSUER_URI: http://localhost:8090/auth
+    depends_on:
+      - mongodb
+      - ai-orchestrator
+    # ⚠ no healthcheck
+
+  evaluation-service:
+    build:
+      context: ../../services/evaluation-service
+    image: acquire-gov/evaluation-service:latest   # ⚠ Item 11
+    ports:
+      - "8082:8082"
+    environment:
+      SOLICITATION_SERVICE_URL: http://solicitation-service:8081
+      # ⚠ DELIBERATE: evaluation-service calls solicitation-service directly,
+      #   not through the gateway — tighter coupling than necessary, and the
+      #   call has no circuit breaker (Item 3).
+    depends_on:
+      - solicitation-service
+    # ⚠ no healthcheck
+
+  ai-orchestrator:
+    build:
+      context: ../../services/ai-orchestrator
+    image: acquire-gov/ai-orchestrator:latest   # ⚠ Item 11
+    ports:
+      - "8000:8000"
+    environment:
+      AWS_REGION: us-east-1
+      BEDROCK_MODEL_ID: anthropic.claude-3-7-sonnet-20250219-v1:0
+      MONGO_URL: mongodb://app:app_dev_password@mongodb:27017
+    # ⚠ DELIBERATE: no AWS creds wired — relies on shared dev IAM role being
+    #   mounted via ~/.aws/credentials. The Bedrock stub returns mock data
+    #   so it works without real creds. First-day learners discover this and
+    #   learn to run `aws configure sso`.
+    # ⚠ no healthcheck
+
+  frontend:
+    build:
+      context: ../../frontend
+    image: acquire-gov/frontend:latest   # ⚠ Item 11
+    ports:
+      - "4200:80"
+    depends_on:
+      - api-gateway
+    # ⚠ no healthcheck
+
+volumes:
+  mongo-data:

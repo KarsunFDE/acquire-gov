@@ -1,0 +1,100 @@
+# acquire-gov — CI workflow
+#
+# ⚠ DELIBERATE BROWNFIELD DEBT — Item 12 in docs/brownfield-debt.md ⚠
+#   The lint step below is commented out with a TODO. PRs aren't actually
+#   linted. Cohort discovers when their first PR's "all green" doesn't
+#   actually mean lint passed. Fix lands W4 Tue spec-driven dev.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: api-gateway
+            kind: java
+          - service: solicitation-service
+            kind: java
+          - service: evaluation-service
+            kind: java
+          - service: ai-orchestrator
+            kind: python
+          - service: frontend
+            kind: node
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        if: matrix.kind == 'java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Set up Python 3.11
+        if: matrix.kind == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node 20
+        if: matrix.kind == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package.json
+
+      - name: Build (java)
+        if: matrix.kind == 'java'
+        working-directory: services/${{ matrix.service }}
+        run: mvn -B -DskipTests package
+
+      - name: Test (java)
+        if: matrix.kind == 'java'
+        working-directory: services/${{ matrix.service }}
+        run: mvn -B test
+
+      - name: Install + test (python)
+        if: matrix.kind == 'python'
+        working-directory: services/ai-orchestrator
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # python -m pytest tests/   # no tests yet — cohort adds in W1 Fri
+
+      - name: Install + build (node)
+        if: matrix.kind == 'node'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # ⚠ DELIBERATE — Item 12:
+      # TODO: re-enable lint when we have time
+      # The lint step below was disabled in 2024 because checkstyle was
+      # flaky on the eclipse-temurin runner. Never re-enabled.
+      #
+      # - name: Lint (java)
+      #   if: matrix.kind == 'java'
+      #   working-directory: services/${{ matrix.service }}
+      #   run: mvn -B checkstyle:check
+      #
+      # - name: Lint (python)
+      #   if: matrix.kind == 'python'
+      #   working-directory: services/ai-orchestrator
+      #   run: ruff check app/
+      #
+      # - name: Lint (node)
+      #   if: matrix.kind == 'node'
+      #   working-directory: frontend
+      #   run: npm run lint
