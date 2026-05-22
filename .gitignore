@@ -1,0 +1,48 @@
+# --- env / secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Java ---
+target/
+*.class
+*.jar
+*.war
+*.iml
+.mvn/
+hs_err_pid*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / Angular ---
+node_modules/
+dist/
+.angular/
+npm-debug.log
+yarn-error.log
+
+# --- Docker ---
+*.pid
+
+# --- Logs ---
+*.log
+logs/
