@@ -37,6 +37,12 @@ jobs:
       - name: Install tooling
         run: pip install pyyaml
 
+      - name: Install ai-orchestrator runtime + test deps (locked-failing tests)
+        working-directory: services/ai-orchestrator
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
       - name: Verify lockfile schema
         run: python .github/scripts/verify-debt-lockfile.py docs/debt-lockfile.yml
 
