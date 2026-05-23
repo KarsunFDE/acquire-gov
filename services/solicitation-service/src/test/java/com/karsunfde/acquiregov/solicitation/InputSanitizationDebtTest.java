@@ -35,6 +35,7 @@ import static org.mockito.Mockito.when;
  * Solicitation, and assert that <script> markers do not survive into the
  * persisted entity.
  */
+@Tag("brownfield_debt")
 @Tag("brownfield_debt_9")
 class InputSanitizationDebtTest {
 

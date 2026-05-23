@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
  * Single Mockito verify() assertion — the locked state is observable by
  * watching which repository method the service calls.
  */
+@Tag("brownfield_debt")
 @Tag("brownfield_debt_10")
 class MultiTenantBoundaryDebtTest {
 
