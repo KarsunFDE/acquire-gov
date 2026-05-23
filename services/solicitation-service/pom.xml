@@ -57,6 +57,21 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <!-- Exclude T27 brownfield-debt locked-failing tests from default
+           `mvn test`. These tests are run + asserted-failing by the
+           debt-enforcement workflow via `make verify-debt-locks` (see
+           .github/scripts/run-locked-tests.sh + fde-10-week/pipeline/
+           T27-debt-enforcement-spec.md). Including them in default
+           surefire would make the normal ci workflow chronically red
+           by design — that conflicts with using ci green/red as a
+           regression signal during cohort-driven modernization work. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <excludedGroups>brownfield_debt_.*</excludedGroups>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>
