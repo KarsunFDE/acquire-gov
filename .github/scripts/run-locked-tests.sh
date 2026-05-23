@@ -54,7 +54,13 @@ while IFS=$'\t' read -r ITEM_ID LOCKED MARKER TEST_PATH NAME; do
             SERVICE_DIR=$(echo "$TEST_PATH" | cut -d/ -f1-2)
             cd "$REPO_ROOT/$SERVICE_DIR" || exit 1
             CLASS_NAME=$(basename "$TEST_PATH" .java)
-            if mvn -B -q test -Dtest="$CLASS_NAME" > /tmp/locked-test-$ITEM_ID.log 2>&1; then
+            # Clear the pom-level excludedGroups (@Tag "brownfield_debt" umbrella
+            # exclusion that keeps debt tests OUT of default `mvn test`) so this
+            # targeted run can actually exercise the locked-failing test.
+            # Also force `failsafe.classes.includes` to match — `-Dtest=` selector
+            # alone is overridden by `excludedGroups` otherwise (test skipped,
+            # mvn exits 0, script falsely reports "now passing").
+            if mvn -B -q test -Dtest="$CLASS_NAME" -DexcludedGroups= -DfailIfNoTests=true > /tmp/locked-test-$ITEM_ID.log 2>&1; then
                 PASSED_LOCKED_CHECKS+=("$ITEM_ID:$NAME ($TEST_PATH)")
             else
                 FAILED_LOCKED_CHECKS+=("$ITEM_ID:$NAME")
