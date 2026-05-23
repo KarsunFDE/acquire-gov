@@ -111,10 +111,14 @@ if [ ${#PENDING_TEST_AUTHOR[@]} -gt 0 ]; then
 fi
 echo ""
 echo "LOCKED + still failing (good): ${#FAILED_LOCKED_CHECKS[@]} items"
-for x in "${FAILED_LOCKED_CHECKS[@]}"; do echo "  - $x"; done
+if [ ${#FAILED_LOCKED_CHECKS[@]} -gt 0 ]; then
+    for x in "${FAILED_LOCKED_CHECKS[@]}"; do echo "  - $x"; done
+fi
 echo ""
 echo "LOCKED but now PASSING (BAD): ${#PASSED_LOCKED_CHECKS[@]} items"
-for x in "${PASSED_LOCKED_CHECKS[@]}"; do echo "  - $x"; done
+if [ ${#PASSED_LOCKED_CHECKS[@]} -gt 0 ]; then
+    for x in "${PASSED_LOCKED_CHECKS[@]}"; do echo "  - $x"; done
+fi
 
 if [ ${#PASSED_LOCKED_CHECKS[@]} -gt 0 ]; then
     echo ""
