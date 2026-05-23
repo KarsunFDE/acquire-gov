@@ -8,7 +8,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.2.5</version>
+    <version>2.7.18</version>
     <relativePath/>
   </parent>
 
@@ -18,7 +18,7 @@
   <packaging>jar</packaging>
 
   <properties>
-    <java.version>21</java.version>
+    <java.version>11</java.version>
   </properties>
 
   <dependencies>
@@ -37,6 +37,15 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+    <!-- DELIBERATE legacy debt — AWS SDK for Java v1 (EOS Dec 31 2025).
+         W5 Mon AWS SDK v1 -> v2 migration exercise drives this via
+         Q Developer transformation capability. Pinned to last stable v1
+         line. Per D-053 (Reduced Path A) + D-056 (single-branch). -->
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-s3</artifactId>
+      <version>1.12.787</version>
     </dependency>
     <!-- DELIBERATE: no spring-boot-starter-validation imported. The cohort
          adds it in W4 Wed when they sanitize input (Item 9). -->
