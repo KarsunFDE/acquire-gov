@@ -40,9 +40,9 @@ surfaces the fix**, and **what "fixed" looks like**.
 ## Item 5 — Pre-v1.0 LangChain patterns
 
 - **Where:** `services/ai-orchestrator/app/legacy_chain.py` (uses `LLMChain(...).run(...)`)
-- **How found:** `grep -rn "LLMChain" services/ai-orchestrator/` and `grep -rn "\.run(" services/ai-orchestrator/`. The v1.0 composed-Runnable pattern exists alongside in `app/main.py` (`prompt | llm | parser`) — cohort sees both styles in the same codebase.
+- **How found:** `grep -rn "LLMChain" services/ai-orchestrator/` and `grep -rn "\.run(" services/ai-orchestrator/`. The v1.0 pattern exists alongside in `app/main.py` — cohort sees both styles in the same codebase.
 - **Surfaces in:** W2 Mon plan-spec; migration is the W2 anchor task.
-- **Fixed looks like:** All `LLMChain` + `.run()` rewritten as composed Runnables; `legacy_chain.py` deleted.
+- **Fixed looks like:** `LLMChain` + `.run()` removed; sequential prompt-flows via plain Python (`model.invoke(prompt.format(...))`); agentic flows via `create_agent(model, tools, middleware=[...])` from `langchain.agents`. `legacy_chain.py` deleted. Per LangChain v1.0 (Oct 2025) — `Chain` class is removed; LCEL `|` pipe is no longer the central composition pattern. Pydantic still standard for structured output + tool args; only `create_agent(state_schema=...)` requires TypedDict.
 
 ## Item 6 — Inconsistent correlation-IDs
 

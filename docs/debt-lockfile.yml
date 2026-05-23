@@ -63,7 +63,7 @@ items:
     test_marker: brownfield_debt_5
     test_path: services/ai-orchestrator/tests/test_legacy_chain_debt.py
     debt_doc_ref: docs/brownfield-debt.md#item-5
-    fixed_looks_like: "All LLMChain + .run() rewritten as composed Runnables; legacy_chain.py deleted."
+    fixed_looks_like: "LLMChain + .run() removed; sequential prompt-flows via plain Python (model.invoke(prompt.format(...))); agentic flows via create_agent(model, tools, middleware=[...]) from langchain.agents. legacy_chain.py deleted. Per LangChain v1.0 docs (Oct 2025) — Chain class is removed; LCEL | pipe is no longer central. Pydantic remains standard for structured output + tool args."
 
   - id: 6
     name: inconsistent-correlation-ids
