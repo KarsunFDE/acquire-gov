@@ -9,6 +9,36 @@ surfaces the fix**, and **what "fixed" looks like**.
 
 ---
 
+## Role in D-059 pair-brownfield design — SHARED BASELINE
+
+Per `fde-10-week/pipeline/DECISIONS.md` D-059 (locked 22 May 2026), the 12 items
+below are the **shared assessment baseline** across all pair-project brownfields
+in a cohort.
+
+When `skills/pair-brownfield-generator/SKILL.md` runs (3× per cohort on W1
+Wed PM + Thu), it:
+
+1. Propagates **these 12 baseline items intact** into each pair's renamed
+   repo (rubric-parity floor — all 3 pairs start from the same debt shape).
+2. Injects **4-6 per-pair-unique items** drawn from
+   `fde-10-week/skills/pair-brownfield-generator/references/pair-unique-debt-pool.yml`,
+   distinct across pairs (drives real discovery work + W3/W6 cross-pair
+   integration learning).
+3. Authors a 3-5 item **stretch backlog** in each pair's `BACKLOG.md` from
+   `references/stretch-backlog-pool.yml` (aspirational, not assessed).
+
+**For the cohort:** when you open your pair-project repo on W1 Thu morning,
+you'll see baseline items below + your pair-unique items in your repo's
+`docs/pair-unique-debt.md`. Modernization work across W2–W6 covers BOTH
+sets. Different pairs got different unique items — your W3+W6 retro
+includes a cross-pair comparison.
+
+**For the instructor:** if any baseline item below is accidentally
+"fixed" during reshape, halt the pair-brownfield-generator run. Baseline
+parity is assessment-critical.
+
+---
+
 ## Item 1 — JWT signature-skip on `/api/public/*`
 
 - **Where:** `services/api-gateway/src/main/java/com/karsunfde/acquiregov/gateway/SecurityConfig.java`
