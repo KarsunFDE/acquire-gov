@@ -27,6 +27,7 @@ APP_DIR = Path(__file__).resolve().parent.parent / "app"
 LEGACY_CHAIN_FILE = APP_DIR / "legacy_chain.py"
 
 
+@pytest.mark.brownfield_debt
 @pytest.mark.brownfield_debt_5
 def test_legacy_chain_file_deleted_DEBT_LOCKED() -> None:
     """When item 5 is modernized, app/legacy_chain.py is deleted."""
@@ -39,6 +40,7 @@ def test_legacy_chain_file_deleted_DEBT_LOCKED() -> None:
     )
 
 
+@pytest.mark.brownfield_debt
 @pytest.mark.brownfield_debt_5
 def test_no_llmchain_references_in_app_DEBT_LOCKED() -> None:
     """When item 5 is modernized, no .py file under app/ imports or uses LLMChain."""
