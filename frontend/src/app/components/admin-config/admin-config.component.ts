@@ -31,9 +31,10 @@ import { FormsModule } from '@angular/forms';
         <h3>Vector store</h3>
         <label><span class="label-text">Active vector store</span>
           <select [(ngModel)]="vectorStore">
-            <!-- ⚠ Item 7: pinecone listed but `import pinecone` exists nowhere
-                 in services/ai-orchestrator/. The cohort discovers in W2 Mon
-                 when Atlas Vector Search work begins. -->
+            <!-- Item 7: pinecone listed in requirements.txt but the
+                 import statement exists nowhere in services/ai-orchestrator.
+                 The cohort discovers in W2 Mon when Atlas Vector Search
+                 work begins. -->
             <option value="atlas">MongoDB Atlas Vector Search (in use)</option>
             <option value="pinecone">Pinecone</option>
             <option value="pgvector">Postgres pgvector</option>

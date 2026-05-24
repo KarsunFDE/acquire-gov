@@ -44,7 +44,7 @@ import { Proposal } from '../../models/proposal';
     <div class="card">
       <h3>Submitted proposals</h3>
       <p style="font-size:0.85rem;color:var(--color-fg-muted)">
-        Contents sealed until {{ proposals[0]?.sealedUntil | date:'medium' }}.
+        Contents sealed until {{ proposals[0] && proposals[0].sealedUntil | date:'medium' }}.
         CO will atomically unseal post-deadline.
       </p>
       <table>

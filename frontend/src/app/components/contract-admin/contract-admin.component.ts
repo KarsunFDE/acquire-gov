@@ -20,7 +20,7 @@ import { ContractModification, Deliverable } from '../../models/award';
   template: `
     <div class="page-header">
       <div>
-        <h2>Contract administration — {{ award?.contractNumber }}</h2>
+        <h2>Contract administration — {{ award.contractNumber }}</h2>
         <div class="subtitle">FAR Part 42 · Mods · CDRL · QASP</div>
       </div>
       <a [routerLink]="['/contracts', contractId, 'cpars']"><button class="secondary">CPAR reviews →</button></a>
