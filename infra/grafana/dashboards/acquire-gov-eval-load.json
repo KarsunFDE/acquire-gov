@@ -1,0 +1,156 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus instance scraping evaluation-service + solicitation-service /actuator/prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "description": "Loki / log source containing /admin/audit query results or app logs",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0" }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Chaos storm starts",
+        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+        "enable": true,
+        "expr": "{service=\"evaluation-service\"} |= \"[CHAOS] storm STARTING\"",
+        "iconColor": "red",
+        "titleFormat": "Chaos storm started"
+      }
+    ]
+  },
+  "title": "acquire-gov — Evaluation Load Incident (W4 Fri MSS)",
+  "uid": "acquire-gov-eval-load",
+  "tags": ["acquire-gov", "w4-mss", "instructor", "incident"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "description": "W4 Fri Mid-Sprint Surprise dashboard. Three incident signals pre-seeded for instructor staging — see weeks/W04/war-room/Fri-mid-sprint-surprise.md §0. Times in description below are the canonical narrative timeline; actual signal times shift with the run.",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Signal 1 (~09:03) — JVM thread-pool exhaustion on evaluation-service",
+      "description": "Active threads + thread states. When the load storm hits at ~09:00, threads pile on the outbound RestTemplate calls (Item 3 — no circuit breaker). Saturation lights up ~3 min in. This is the cohort's first observable.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "jvm_threads_states_threads{application=\"evaluation-service\"}",
+          "legendFormat": "{{state}}"
+        },
+        {
+          "refId": "B",
+          "expr": "jvm_threads_live_threads{application=\"evaluation-service\"}",
+          "legendFormat": "live (total)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 100 },
+              { "color": "red", "value": 180 }
+            ]
+          },
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Signal 1b — Outbound HTTP latency: evaluation-service → solicitation-service",
+      "description": "5xx + latency on the unprotected hop. Confirms Item 3 cascade — slow upstream piles threads on this side.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_client_requests_seconds_bucket{application=\"evaluation-service\",uri=~\"/api/solicitations/.*\"}[1m])))",
+          "legendFormat": "p95 latency outbound"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (status) (rate(http_client_requests_seconds_count{application=\"evaluation-service\",uri=~\"/api/solicitations/.*\"}[1m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "Signal 2 (~09:05) — Audit-log gap (Item 2 race)",
+      "description": "Queries Loki for AuditEvent persistence gaps on solicitation-service. Item 2: audit row written AFTER response. Under thread starvation, the worker is reaped between response send + audit row persist. One missing row between consecutive correlation_id values = the OIG flag.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=\"solicitation-service\"} |~ \"AuditEvent\" |~ \"(missing|gap|race|interrupted)\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Signal 3 (~09:07) — SSDD_SIGNED audit row count (last 10m)",
+      "description": "Count of SSDD_SIGNED audit rows persisted in the last 10 minutes. Should equal the count of SSDD-sign events the source-selection model recorded. Mismatch = the W4-MSS punchline: SSDD was signed but no audit record.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count_over_time({service=\"solicitation-service\"} |= \"AUDIT\" |= \"SSDD_SIGNED\" [10m])"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "green", "value": 2 }
+            ]
+          },
+          "noValue": "0 — audit gap"
+        }
+      }
+    }
+  ]
+}

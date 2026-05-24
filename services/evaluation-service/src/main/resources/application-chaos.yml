@@ -1,0 +1,55 @@
+# application-chaos.yml — INSTRUCTOR-ONLY chaos profile
+#
+# ⚠ NOT FOR PRODUCTION ⚠
+# Activates the W4 Fri Mid-Sprint Surprise load-storm injector. Reproduces
+# the canonical Workflow 4 + Item 3 (no circuit breaker) incident shape
+# across cohort deliveries per D-049 + D-060.
+#
+# Activate ONLY by:
+#   SPRING_PROFILES_ACTIVE=chaos  +  chaos.evaluator-load-storm.enabled=true
+#
+# Two hard gates: profile=chaos AND enabled=true. Either alone is inert.
+# This file is loaded by Spring only when `chaos` profile is active. Even
+# then, the @ConditionalOnProperty on the injector bean refuses to wire
+# unless the flag below is true.
+#
+# Reference: /Users/jestercharles/fde-10-week/weeks/W04/war-room/Fri-mid-sprint-surprise.md
+
+chaos:
+  evaluator-load-storm:
+    # Master gate. Bean refuses to instantiate when false (even on chaos profile).
+    enabled: true
+
+    # Target solicitation id the 50 concurrent evaluator threads hammer via
+    # solicitation-service for proposal text. Pre-seed this id in the
+    # evaluation environment before staging the incident.
+    target-solicitation-id: "SOL-FY26-0042"
+
+    # 50 concurrent evaluator threads, sustained 4 minutes — canonical
+    # Item 3 reproducer per spec §0.
+    concurrent-threads: 50
+    duration-seconds: 240
+
+    # Per-thread inter-request delay. 50ms keeps throughput high enough to
+    # saturate the upstream RestTemplate connection pool without
+    # immediately OOM-ing evaluation-service itself.
+    request-interval-millis: 50
+
+    # Scheduled trigger. Spring 6-field cron format (sec min hr dom mon dow).
+    # Default fires every Friday at 09:00 local server time. Instructor can
+    # override per cohort delivery (e.g., "0 0 14 28 5 *" for a one-off
+    # dry-run on a specific date).
+    schedule-cron: "0 0 9 * * FRI"
+
+    # Allow POST /admin/chaos/storm/trigger for instructor prep verification
+    # the day before the cohort exercise. Disable in any environment that
+    # is not the locked-down chaos staging host.
+    manual-trigger-endpoint-enabled: true
+
+# Expose the trigger endpoint via actuator-adjacent path. Standard health/info
+# stay as in application.yml; chaos profile additionally permits chaos paths.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

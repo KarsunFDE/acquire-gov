@@ -3,6 +3,7 @@ package com.karsunfde.acquiregov.evaluation;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
 /**
@@ -15,8 +16,14 @@ import org.springframework.web.client.RestTemplate;
  *   - Item 3 — No Resilience4j circuit breaker on outbound calls
  *   - Item 6 — Logs traceId (inconsistent with X-Request-ID / correlationId)
  *   - Item 11 — Dockerfile uses :latest
+ *
+ * {@code @EnableScheduling} is required by the chaos-profile cron trigger in
+ * {@code com.karsunfde.acquiregov.evaluation.chaos.EvaluatorLoadStormInjector}.
+ * Enabling it on the default profile is harmless — no other {@code @Scheduled}
+ * methods exist in this service, and the chaos bean itself is profile-gated.
  */
 @SpringBootApplication
+@EnableScheduling
 public class EvaluationServiceApplication {
 
     public static void main(String[] args) {
