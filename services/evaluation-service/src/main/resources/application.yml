@@ -4,10 +4,19 @@ server:
 spring:
   application:
     name: evaluation-service
+  data:
+    mongodb:
+      uri: ${MONGO_URL:mongodb://app:app_dev_password@localhost:27017}
+      database: ${MONGO_DB:acquire_gov}
+      auto-index-creation: true
 
 solicitation:
   service:
     url: ${SOLICITATION_SERVICE_URL:http://solicitation-service:8081}
+
+ai:
+  orchestrator:
+    url: ${AI_ORCHESTRATOR_URL:http://ai-orchestrator:8000}
 
 management:
   endpoints:
