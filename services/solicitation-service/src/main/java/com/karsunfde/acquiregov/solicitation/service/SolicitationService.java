@@ -14,7 +14,11 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Solicitation business logic.
+ * Solicitation business logic. Workflow 1 (drafting -> publication).
+ *
+ * State machine:
+ *   DRAFT -> INTERNAL_REVIEW -> READY_TO_PUBLISH -> PUBLISHED -> (AMENDED)* -> CLOSED
+ *   CANCELLED reachable from any pre-PUBLISHED state.
  *
  * Brownfield-debt items present in this class:
  *   - Item 2 — {@link AuditLogger#recordAsync} runs after response flushes.
@@ -91,5 +95,36 @@ public class SolicitationService {
             auditLogger.recordAsync("DELETE", "solicitation", id, actor, s.getAgencyId());
             return true;
         }).orElse(false);
+    }
+
+    /**
+     * Transition DRAFT/INTERNAL_REVIEW/READY_TO_PUBLISH -> PUBLISHED.
+     * FAR 5.203 publication. ⚠ Item 2 — publish event audit-logged async.
+     */
+    public Optional<Solicitation> publish(String id, String actor) {
+        return repo.findById(id).map(s -> {
+            s.setStatus("PUBLISHED");
+            s.setPostedAt(Instant.now());
+            s.setUpdatedAt(Instant.now());
+            Solicitation saved = repo.save(s);
+            // ⚠ Item 2.
+            auditLogger.recordAsync("PUBLISH", "solicitation", saved.getId(),
+                actor, saved.getAgencyId());
+            log.info("solicitation published id={} agencyId={}",
+                saved.getId(), saved.getAgencyId());
+            return saved;
+        });
+    }
+
+    public Optional<Solicitation> cancel(String id, String actor) {
+        return repo.findById(id).map(s -> {
+            s.setStatus("CANCELLED");
+            s.setUpdatedAt(Instant.now());
+            Solicitation saved = repo.save(s);
+            // ⚠ Item 2.
+            auditLogger.recordAsync("CANCEL", "solicitation", saved.getId(),
+                actor, saved.getAgencyId());
+            return saved;
+        });
     }
 }
