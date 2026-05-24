@@ -179,7 +179,7 @@ PR and would prejudge the W2/W3 testing-discipline curriculum.
 
 ## Debt-touch checkbox
 
-- [x] NO — no baseline debt items modified or fixed. Items 7, 9, 11, 12 are
+- [x] **NO** — no baseline debt items modified or fixed. Items 7, 9, 11, 12 are
   additionally REINFORCED through new UI surfaces (not new debt — same
   underlying bugs surfaced in more cohort-discoverable contexts).
 
