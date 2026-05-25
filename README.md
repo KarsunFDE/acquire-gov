@@ -30,7 +30,7 @@ This repo is the **template + training-project** for all 4 brownfields in the pr
 | Repo | What |
 |------|------|
 | [`content`](https://github.com/KarsunFDE/content) | Cohort-facing async content (pre-session, war-room, scenarios) — public |
-| [`domain-knowledge`](https://github.com/KarsunFDE/domain-knowledge) | Federal-acquisitions references (FAR/DFARS, OIG/OMB) — public |
+| [`domain-knowledge`](https://github.com/KarsunFDE/domain-knowledge) | Federal-acquisitions corpus — 11 `/web-research`-sourced briefs. Shared baseline: [`federal-ambient-far`](https://github.com/KarsunFDE/domain-knowledge/blob/main/federal-ambient-far.md) (FAR Parts 7/11/12/15/19). Public. |
 | `assessment-ec` | Checkpoint exams + audit rubrics — **private, not associate-visible** |
 | `training-resources` | Instructor-facing daily walkthroughs + EOD task specs — **private, not associate-visible** |
 
