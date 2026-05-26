@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { RoleService } from '../services/role.service';
 import { Role, RoleProfile } from '../models/roles';
 
@@ -79,21 +80,35 @@ const NAV: NavGroup[] = [
   imports: [CommonModule, RouterLink, RouterLinkActive],
   template: `
     <nav class="sidebar">
-      <ng-container *ngFor="let group of visibleGroups()">
+      <ng-container *ngFor="let group of visibleGroups; trackBy: trackGroup">
         <div class="sidebar-section-title">{{ group.title }}</div>
-        <a *ngFor="let link of group.links"
+        <a *ngFor="let link of group.links; trackBy: trackLink"
            [routerLink]="link.route"
            routerLinkActive="active">{{ link.label }}</a>
       </ng-container>
     </nav>
   `,
 })
-export class SidebarNavComponent {
+export class SidebarNavComponent implements OnInit, OnDestroy {
+  visibleGroups: NavGroup[] = [];
+  private sub?: Subscription;
+
   constructor(public role: RoleService) {}
 
-  visibleGroups(): NavGroup[] {
-    const current = this.role.currentRole;
-    return NAV
+  ngOnInit(): void {
+    this.recompute(this.role.currentRole);
+    this.sub = this.role.profile$.subscribe((p) => this.recompute(p.role));
+  }
+
+  ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+  }
+
+  trackGroup = (_: number, g: NavGroup) => g.title;
+  trackLink = (_: number, l: NavLink) => l.route;
+
+  private recompute(current: Role): void {
+    this.visibleGroups = NAV
       .map((g) => ({
         ...g,
         links: g.links.filter((l) =>
