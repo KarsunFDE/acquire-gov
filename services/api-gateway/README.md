@@ -1,6 +1,6 @@
 # api-gateway
 
-Spring Boot 2.7.18 + Spring Cloud Gateway + Spring Security OAuth2 Resource Server. Java 11 baseline. W4 modernizes to SB 3.x + Java 17.
+Spring Boot 2.7.18 + Spring Cloud Gateway + Spring Security OAuth2 Resource Server. Java 11 baseline. W4 modernizes to SB 4.0.x + Java 21.
 
 ## Routes
 
