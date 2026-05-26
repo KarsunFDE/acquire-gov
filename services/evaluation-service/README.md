@@ -1,6 +1,6 @@
 # evaluation-service
 
-Spring Boot 3.2. Evaluation panel coordination. Calls solicitation-service over sync REST.
+Spring Boot 2.7.18. Evaluation panel coordination. Calls solicitation-service over sync REST. Java 11 baseline. W4 modernizes to SB 3.x + Java 17.
 
 ## Endpoints
 

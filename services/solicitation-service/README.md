@@ -1,6 +1,6 @@
 # solicitation-service
 
-Spring Boot 3.2 + Spring Data MongoDB. FAR/DFARS solicitation CRUD.
+Spring Boot 2.7.18 + Spring Data MongoDB. FAR/DFARS solicitation CRUD. Java 11 baseline. W4 modernizes to SB 3.x + Java 17.
 
 ## Endpoints
 

@@ -48,7 +48,7 @@ This repo is the **template + training-project** for all 4 brownfields in the pr
                   └──┬───────────┬──┬────┘
                      │           │  │ traceparent
         ┌────────────▼──┐  ┌─────▼──▼─────────┐
-        │ Solicitation   │  │ Evaluation       │   ← Spring Boot 3.x
+        │ Solicitation   │  │ Evaluation       │   ← Spring Boot 2.7.18 (W4 target: 3.x)
         │ Service        │  │ Service          │
         │ (Java) :8081   │  │ (Java) :8082     │
         └────┬───────┬───┘  └────┬─────┬───────┘
@@ -76,9 +76,9 @@ This repo is the **template + training-project** for all 4 brownfields in the pr
 | Path | Service | Tech | Port |
 |------|---------|------|------|
 | `frontend/` | Angular SPA | Angular 17+ | 4200 |
-| `services/api-gateway/` | Auth edge + routing | Spring Boot 3.2 + Spring Cloud Gateway + OAuth2 Resource Server | 8080 |
-| `services/solicitation-service/` | FAR/DFARS solicitation CRUD | Spring Boot 3.2 + JPA (Postgres) + MongoDB | 8081 |
-| `services/evaluation-service/` | Evaluation panel coordination | Spring Boot 3.2 | 8082 |
+| `services/api-gateway/` | Auth edge + routing | Spring Boot 2.7.18 + Spring Cloud Gateway + OAuth2 Resource Server (Java 11; W4 modernizes to SB 3.x + Java 17) | 8080 |
+| `services/solicitation-service/` | FAR/DFARS solicitation CRUD | Spring Boot 2.7.18 + JPA (Postgres) + MongoDB (Java 11; W4 modernizes to SB 3.x + Java 17) | 8081 |
+| `services/evaluation-service/` | Evaluation panel coordination | Spring Boot 2.7.18 (Java 11; W4 modernizes to SB 3.x + Java 17) | 8082 |
 | `services/ai-orchestrator/` | LLM/RAG/agent orchestration | Python 3.11 + FastAPI + LangChain v1.0 + Pydantic v2 + boto3 | 8000 |
 | `infra/docker/` | Local dev compose stack | Docker Compose | — |
 | `infra/github-actions/` | CI/CD workflows | GHA | — |
