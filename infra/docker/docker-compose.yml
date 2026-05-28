@@ -93,14 +93,23 @@ services:
     image: acquire-gov/ai-orchestrator:latest   # ⚠ Item 11
     ports:
       - "8000:8000"
+    # AWS creds for real Bedrock (D-060) now flow from the repo-root .env
+    # (copy from .env.example). Recommended path: set AWS_BEARER_TOKEN_BEDROCK
+    # in .env (needs boto3 >= 1.39.11; auto-used, no code change). IAM
+    # access-key/secret also works. required:false keeps the "runs without
+    # creds -> Bedrock stub" property for first-day learners.
+    env_file:
+      - path: ../../.env
+        required: false
     environment:
       AWS_REGION: us-east-1
+      # ⚠ a generation behind current GA — pinned here AND in bedrock_client.py
+      #   AND .env.example (no single source of truth). Deliberate drift the
+      #   cohort consolidates. NOTE: `environment` wins over `env_file`, so this
+      #   line overrides BEDROCK_MODEL_ID from .env — edit/remove it here to let
+      #   .env drive the model. (AWS creds from .env are NOT shadowed.)
       BEDROCK_MODEL_ID: anthropic.claude-3-7-sonnet-20250219-v1:0
       MONGO_URL: mongodb://app:app_dev_password@mongodb:27017
-    # ⚠ DELIBERATE: no AWS creds wired — relies on shared dev IAM role being
-    #   mounted via ~/.aws/credentials. The Bedrock stub returns mock data
-    #   so it works without real creds. First-day learners discover this and
-    #   learn to run `aws configure sso`.
     # ⚠ no healthcheck
 
   frontend:

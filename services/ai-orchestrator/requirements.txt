@@ -17,7 +17,11 @@ langchain-core==0.3.15
 langchain-aws==0.2.7
 
 # Bedrock / AWS
-boto3==1.35.49
+# 1.39.11 is the floor for Bedrock API-key (bearer-token) auth via the
+# AWS_BEARER_TOKEN_BEDROCK env var: support landed in 1.39.0, and 1.39.11
+# fixed bearer auth being misapplied to non-bedrock services. boto3.client
+# ("bedrock-runtime") auto-uses the env var — no code change in bedrock_client.
+boto3==1.39.11
 
 # Datastores / future RAG
 pymongo==4.10.1
