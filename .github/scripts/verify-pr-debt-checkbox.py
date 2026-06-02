@@ -27,8 +27,12 @@ import sys
 LOCKFILE_PATH = "docs/debt-lockfile.yml"
 APPROVAL_LABEL = "debt-touch-approved"
 
-CHECKBOX_NO = re.compile(r"^\s*-\s*\[x\]\s*\*\*NO\*\*", re.MULTILINE | re.IGNORECASE)
-CHECKBOX_YES = re.compile(r"^\s*-\s*\[x\]\s*\*\*YES\*\*", re.MULTILINE | re.IGNORECASE)
+# Format-tolerant: matches "- [x] NO", "* [x] **NO**", "- [X] No", etc. Bold
+# markers and bullet char are optional — authors routinely hand-roll the body
+# without the exact template markup, and the old bold-only pattern false-failed
+# those legitimately-filled checkboxes. \b stops NONE / YESTERDAY false matches.
+CHECKBOX_NO = re.compile(r"^\s*[-*]\s*\[x\]\s*\*{0,2}NO\b", re.MULTILINE | re.IGNORECASE)
+CHECKBOX_YES = re.compile(r"^\s*[-*]\s*\[x\]\s*\*{0,2}YES\b", re.MULTILINE | re.IGNORECASE)
 
 
 def fail(msg: str) -> None:
@@ -69,8 +73,8 @@ def main() -> None:
 
     if not no_checked and not yes_checked:
         fail(
-            "PR template debt-touch checkbox not filled. Check one of "
-            "**NO** (default) or **YES** (with item IDs)."
+            "PR template debt-touch checkbox not filled. Check exactly one — "
+            "e.g. `- [x] NO` (default) or `- [x] YES` (then list item IDs)."
         )
     if no_checked and yes_checked:
         fail("Both NO and YES debt-touch checkboxes checked. Pick one.")
