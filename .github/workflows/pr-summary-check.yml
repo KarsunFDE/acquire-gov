@@ -1,0 +1,31 @@
+name: pr-summary-check
+
+# Requires every PR to actually describe its change in the "## Summary"
+# section of the PR body (Claude-drafted + human-reviewed, per the reordered
+# .github/pull_request_template.md). A blank or placeholder-only Summary fails.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  summary-present:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a non-empty Summary
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Pull the text under "## Summary" up to the next "## " or "---" divider.
+          summary="$(printf '%s' "$BODY" | awk '
+            /^## Summary/ {grab=1; next}
+            grab && (/^## / || /^---/) {grab=0}
+            grab {print}
+          ')"
+          # Strip HTML comments + whitespace to test for real content.
+          cleaned="$(printf '%s' "$summary" | sed 's/<!--.*-->//g' | tr -d '[:space:]')"
+          if [ -z "$cleaned" ]; then
+            echo "::error::PR Summary is empty. Add a Claude-drafted summary of your change (see .github/pull_request_template.md)."
+            exit 1
+          fi
+          echo "Summary present ✔"
