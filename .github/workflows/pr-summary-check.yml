@@ -10,6 +10,7 @@ on:
 
 jobs:
   summary-present:
+    name: pr-summary-check
     runs-on: ubuntu-latest
     steps:
       - name: Require a non-empty Summary
