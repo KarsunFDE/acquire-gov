@@ -10,15 +10,6 @@ DELIBERATE BROWNFIELD DEBT (annotated for cohort discovery):
            /eval/factor-suggest, /agent/intake-triage) ALSO return raw dict —
            same Pydantic-validation drift across 4 distinct AI endpoints.
 
-  Item 5 (partial) — This file uses the LangChain v1.0+ composed-Runnable
-           pattern (prompt | llm | parser). The legacy LLMChain(...).run(...)
-           pattern lives in app/legacy_chain.py and is invoked from 3 entry
-           points: /draft-solicitation (Drafting Wizard), /draft-amendment
-           (Amendment Editor), and the notification-copy generator (called
-           upstream via the Spring Notifier.cparWindowOpened path which fans
-           to /draft-amendment with a CPAR-window topic). Cohort consolidates
-           in W2.
-
   Item 6 (partial) — No correlation-ID logging at all. Other services log
            X-Request-ID / correlationId / traceId — this one logs nothing.
 
@@ -37,26 +28,12 @@ DELIBERATE BROWNFIELD DEBT (annotated for cohort discovery):
 from __future__ import annotations
 
 import logging
-import os
 import random
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 
-# ⚠ Item 5 — v1.0 composed-Runnable style. Imported but not actually wired to
-# Bedrock in the stub (we return mock data). Cohort wires it up in W1 Thu.
-try:
-    from langchain_core.prompts import ChatPromptTemplate
-    from langchain_core.output_parsers import StrOutputParser
-    _LANGCHAIN_V1_AVAILABLE = True
-except ImportError:
-    _LANGCHAIN_V1_AVAILABLE = False
-
-# Note: legacy_chain.py also exists in this package and uses the pre-v1.0
-# LLMChain pattern. Item 5 — cohort migrates that file's style to this one.
-from app import legacy_chain  # noqa: F401 — imported to keep the v0.x entry
-                                # point reachable; cohort grep finds the seam.
 from app.bedrock_client import invoke_model, BEDROCK_MODEL_ID, AWS_REGION
 
 # ⚠ DELIBERATE — no correlation-ID in the log format (Item 6).
@@ -167,9 +144,6 @@ def draft_amendment(req: DraftRequest) -> dict[str, Any]:
     Amendment narrative drafting (Workflow 2; FAR 15.206).
 
     ⚠ Item 4 — no Pydantic response model.
-    ⚠ Item 5 — routes through legacy_chain construction (the legacy LLMChain
-       pattern is imported + constructed via legacy_chain.draft_with_legacy_chain
-       upstream in the call graph). This is entry point #2 of 3 for Item 5.
     ⚠ Item 6 — no correlation-id forwarded.
     """
     log.info("draft-amendment called topic=%r", req.topic)
@@ -273,8 +247,6 @@ def eval_ssdd_draft(req: DraftRequest) -> dict[str, Any]:
     SSA-gated (FAR 15.308 — non-delegable).
 
     ⚠ Item 4 — no Pydantic response model.
-    ⚠ Item 5 — third entry point; copy generated via legacy_chain when the
-       upstream notification path requests CPAR-window copy generation.
     ⚠ Item 6 — no correlation-id forwarded.
     """
     log.info("eval/ssdd-draft topic=%r", req.topic)
@@ -330,33 +302,3 @@ def agent_intake_triage(req: IntakeTriageRequest) -> dict[str, Any]:
     }
 
 
-@app.post("/draft-solicitation-v1")
-def draft_solicitation_v1(req: DraftRequest) -> dict[str, Any]:
-    """
-    v1.0 composed-Runnable example (Item 5).
-
-    Demonstrates the prompt | llm | parser pattern the cohort migrates the
-    legacy_chain.py to in W2. Still a stub — doesn't hit real Bedrock.
-    """
-    if not _LANGCHAIN_V1_AVAILABLE:
-        raise HTTPException(503, "langchain v1.0 not available")
-
-    # Composed-Runnable scaffolding — would be:
-    #   prompt | bedrock_llm | StrOutputParser()
-    # We just demonstrate the construction without invoking it.
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You draft federal acquisition clauses."),
-        ("user", "Draft a paragraph about: {topic}. Constraints: {constraints}."),
-    ])
-    parser = StrOutputParser()
-    _chain_scaffold = prompt | parser  # would normally be: prompt | llm | parser
-
-    log.info("draft-solicitation-v1 (composed Runnable scaffold) topic=%r",
-             req.topic)
-
-    return {
-        "clause_id": f"FAR-52.{random.randint(200, 250)}-{random.randint(1, 30)}",
-        "draft": f"[stub-v1] composed-runnable draft about {req.topic}",
-        "model": BEDROCK_MODEL_ID,
-        "pattern": "prompt | llm | parser",
-    }

@@ -12,7 +12,6 @@ wires up real Bedrock calls.
 |--------|------|-------|
 | GET    | `/health` | (⚠ always 200 — no real dep check) |
 | POST   | `/draft-solicitation` | Bedrock stub; ⚠ Item 4 — returns raw JSON, sometimes `{"clause_id": null}` |
-| POST   | `/draft-solicitation-v1` | v1.0 composed-Runnable scaffold (Item 5 modernization target) |
 
 ## Build + run
 
@@ -27,8 +26,12 @@ uvicorn app.main:app --reload --port 8000
 - **Item 4** — `/draft-solicitation` returns raw stub JSON; no Pydantic
   response model; 1-in-3 returns `{"clause_id": null}` to exercise the
   downstream NPE.
-- **Item 5** — `app/legacy_chain.py` uses pre-v1.0 `LLMChain(...).run(...)`;
-  `app/main.py` uses v1.0 composed-Runnable. Cohort consolidates in W2.
+- **Item 5** — MODERNIZED W2-Mon (PR A1). `app/legacy_chain.py` deleted;
+  LLMChain references removed. Sequential prompt flows use plain Python
+  (`invoke_model(prompt.format(...))`); agentic flows will use
+  `create_agent(model, tools, middleware=[...])` from `langchain.agents`
+  when wired in M3. Locked-failing test transitioned to passing;
+  `docs/debt-lockfile.yml` flipped `locked: true → false`.
 - **Item 6 (partial)** — No correlation-ID logging (the other three services
   each use a different key; this one has none).
 - **Item 7** — `pinecone-client` in `requirements.txt`, no `import pinecone`

@@ -57,7 +57,7 @@ items:
 
   - id: 5
     name: pre-v1-langchain-patterns
-    locked: true
+    locked: false
     scheduled_unlock_week: W2-Mon
     teaching_anchor: RAG-Architecture-week-anchor
     test_marker: brownfield_debt_5

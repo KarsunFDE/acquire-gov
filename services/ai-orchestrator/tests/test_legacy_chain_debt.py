@@ -46,7 +46,7 @@ def test_no_llmchain_references_in_app_DEBT_LOCKED() -> None:
     """When item 5 is modernized, no .py file under app/ imports or uses LLMChain."""
     offenders: list[str] = []
     for py_file in APP_DIR.rglob("*.py"):
-        text = py_file.read_text()
+        text = py_file.read_text(encoding="utf-8")
         if "LLMChain" in text:
             offenders.append(str(py_file.relative_to(APP_DIR.parent)))
     assert offenders == [], (
