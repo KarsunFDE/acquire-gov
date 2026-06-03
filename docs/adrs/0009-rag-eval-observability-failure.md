@@ -151,5 +151,5 @@ Concrete failure modes the design must avoid, each tied to a mitigating ADR or g
 | Cohere Rerank 3.5 as regional-failover for Amazon Rerank brownouts | Phase 2 ADR, if D4 metrics show it's needed |
 | LangSmith self-hosted as trace-UX upgrade | Phase 2, if cohort feedback says OTel + Jaeger isn't enough |
 | App-side OTel rollout (including GenAI conventions promotion check) | Phase 2 observability ADR per PRD §4 + §11 |
-| Threshold ratchet exception process | Capture as runbook when first deliberate degradation is needed |
+| Threshold ratchet exception process | Capture as spec when first deliberate degradation is needed |
 | Judge model swap to Haiku 4.5 vs Sonnet for higher-fidelity eval | Phase 1.5 trigger if judge-drift artifacts show disagreement > tolerable rate |

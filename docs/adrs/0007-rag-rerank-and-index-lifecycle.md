@@ -162,5 +162,5 @@ Cache promotion path (if and when Phase D observability shows it's needed): wrap
 - D1/D2: integration test sends a query that should retrieve well (top score ≥ 0.5) → "pass" branch. A query for content not in the corpus → top score < 0.3 → "withhold" branch with empty result list. A near-miss query → "hitl" branch with `requires_human_review=true` in response.
 - D3: `bedrock_client.py` test for `rerank_and_gate` using a mocked `bedrock-agent-runtime` client; verify region is `us-west-2` and `modelArn` is the Amazon Rerank 1.0 ARN.
 - D4: `db.<coll>.listSearchIndexes()` after seed shows two indexes, both `status: READY`.
-- D5: documented runbook step in `docs/runbooks/rag-reembed.md` (to be written when the first dim/model swap is scheduled).
+- D5: documented spec step in `docs/specs/rag-reembed.md` (to be written when the first dim/model swap is scheduled).
 - D6: no Redis or app-cache code in `services/ai-orchestrator/` for Phase 1; ADR-0009 observability dashboard reports retrieval p50/p95 latency so Phase 1.5 has data to decide on cache addition.

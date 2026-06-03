@@ -119,4 +119,4 @@ MongoDB docs label `$rankFusion` and `$scoreFusion` as **Preview** features. Sou
 - D1/D2: a snapshot of FAR Part 15.2 ingests into Atlas with the schema above; spot-checks confirm `far_section` populated correctly for L, M, K chunks.
 - D3: `pytest tests/test_retrieval_classifier.py` has cases for `"FAR 52.212-4"`, `"IDIQ ceiling"`, `"how should past performance weight against price"`, and a default phrase — assert weight tuple per the table.
 - D4: integration test where tenant-A retrieval cannot surface a tenant-B-tagged chunk (proof deferred to ADR-0008 wiring, but the `pre_filter` argument is non-optional in the retriever factory function).
-- D5: a CI check or runbook note flags Preview status — re-check before any prod move.
+- D5: a CI check or spec note flags Preview status — re-check before any prod move.
