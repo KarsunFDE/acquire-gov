@@ -33,8 +33,18 @@ from typing import Any
 
 from fastapi import FastAPI
 from pydantic import BaseModel
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.bedrock_client import invoke_model, BEDROCK_MODEL_ID, AWS_REGION
+
+# M2 routers (additive — brownfield endpoints below remain per CLAUDE.md
+# "brownfield-debt invariant"). Routers own their own slowapi limiters;
+# we register the per-router limiter on app.state so SlowAPIMiddleware
+# enforces it.
+from app.api.draft import router as draft_router, limiter as draft_limiter
+from app.api.ingest import router as ingest_router
+from app.api.retrieve import router as retrieve_router, limiter as retrieve_limiter
 
 # ⚠ DELIBERATE — no correlation-ID in the log format (Item 6).
 logging.basicConfig(
@@ -44,6 +54,27 @@ logging.basicConfig(
 log = logging.getLogger("ai-orchestrator")
 
 app = FastAPI(title="ai-orchestrator", version="0.1.0-brownfield")
+
+# ---- M2 router wiring (ADR-0011 D4 — slowapi per-tenant rate limit) ----
+# Use the retrieve-router limiter as the canonical app.state.limiter; the
+# draft router shares the same Limiter contract (same key_func + caps).
+app.state.limiter = retrieve_limiter
+
+
+def _rate_limit_handler(_request, exc: RateLimitExceeded):  # type: ignore[no-untyped-def]
+    from fastapi.responses import JSONResponse  # noqa: PLC0415
+    return JSONResponse(
+        status_code=429,
+        content={"error": "rate_limited", "detail": str(exc.detail)},
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+app.include_router(retrieve_router)
+app.include_router(draft_router)
+app.include_router(ingest_router)
 
 
 class DraftRequest(BaseModel):
