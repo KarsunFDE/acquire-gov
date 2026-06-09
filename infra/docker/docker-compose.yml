@@ -30,14 +30,25 @@ services:
     # Cohort fixes in W1 Tue inventory follow-up.
 
   mongodb:
-    image: mongo:7
+    # M2 (ADR-0005 D3, ADR-0010 D4): atlas-local replaces mongo:7 because
+    # $vectorSearch + $rankFusion only ship in Atlas Search, not community
+    # Mongo. Pinned to 8.0.8 — the first GA tag with $rankFusion (Preview).
+    hostname: mongodb
+    image: mongodb/mongodb-atlas-local:8.0.8
     environment:
-      MONGO_INITDB_ROOT_USERNAME: app
-      MONGO_INITDB_ROOT_PASSWORD: app_dev_password
+      MONGODB_INITDB_ROOT_USERNAME: app
+      MONGODB_INITDB_ROOT_PASSWORD: app_dev_password
     ports:
       - "27017:27017"
     volumes:
-      - mongo-data:/data/db   # ← inconsistency vs postgres — teaching moment
+      - mongo-data:/data/db        # ← inconsistency vs postgres — teaching moment
+      - mongo-config:/data/configdb
+      # Seed-time DDL: createSearchIndex + audit_log roles (B2).
+      # Atlas-local executes any *.js under /docker-entrypoint-initdb.d/
+      # against `mongosh` on first boot.
+      - ../mongo/seed:/docker-entrypoint-initdb.d:ro
+    # NOTE: atlas-local requires `?directConnection=true` in the connection
+    # string (ADR-0005 D3). MONGO_URL env var on consumers updated below.
 
   api-gateway:
     build:
@@ -63,7 +74,8 @@ services:
     ports:
       - "8081:8081"
     environment:
-      MONGO_URL: mongodb://app:app_dev_password@mongodb:27017
+      # ADR-0005 D3: atlas-local requires ?directConnection=true.
+      MONGO_URL: mongodb://app:app_dev_password@mongodb:27017/?directConnection=true
       MONGO_DB: acquire_gov
       AI_ORCHESTRATOR_URL: http://ai-orchestrator:8000
       JWT_ISSUER_URI: http://localhost:8090/auth
@@ -109,7 +121,7 @@ services:
       #   line overrides BEDROCK_MODEL_ID from .env — edit/remove it here to let
       #   .env drive the model. (AWS creds from .env are NOT shadowed.)
       BEDROCK_MODEL_ID: anthropic.claude-3-7-sonnet-20250219-v1:0
-      MONGO_URL: mongodb://app:app_dev_password@mongodb:27017
+      MONGO_URL: mongodb://app:app_dev_password@mongodb:27017/?directConnection=true
     # ⚠ no healthcheck
 
   frontend:
@@ -124,3 +136,4 @@ services:
 
 volumes:
   mongo-data:
+  mongo-config:

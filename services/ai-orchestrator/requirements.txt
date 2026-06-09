@@ -8,11 +8,14 @@
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 
-# LangChain v1.0+ — sequential flows via plain Python (model.invoke + prompt.format);
-# agentic flows via langchain.agents.create_agent (wired in M3).
-langchain==0.3.7
-langchain-core==0.3.15
-langchain-aws==0.2.7
+# LangChain v1 — required for M2 grounded retrieval (ADR-0005 D1, ADR-0010 D1).
+# Sequential flows: plain Python (model.invoke + prompt.format).
+# Agentic flows: langchain.agents.create_agent (wired in M3).
+langchain>=1.0,<2
+langchain-core>=1.0,<2
+langchain-aws>=0.3,<1
+langchain-mongodb>=0.5,<1
+langchain-text-splitters>=0.3,<1
 
 # Bedrock / AWS
 # 1.39.11 is the floor for Bedrock API-key (bearer-token) auth via the
@@ -21,11 +24,17 @@ langchain-aws==0.2.7
 # ("bedrock-runtime") auto-uses the env var — no code change in bedrock_client.
 boto3==1.39.11
 
-# Datastores / future RAG
+# Datastores
 pymongo==4.10.1
 
 # Schemas
 pydantic==2.9.2
+
+# Resiliency (ADR-0004 B1 — tenacity full-jitter retry envelope)
+tenacity==9.0.0
+
+# Per-tenant rate limiting (ADR-0011 D4 — in-process; Redis-backed Phase 1.5)
+slowapi>=0.1.9,<1
 
 # ⚠ Item 7 — listed but never imported. Cohort removes in W2.
 pinecone-client==5.0.1
