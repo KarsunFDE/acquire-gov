@@ -8,11 +8,12 @@ name: synthetic-data-check
 # inclusion of real SAM.gov solicitation text, real CO names, or any other
 # non-public-domain real procurement copy.
 #
-# Allowlist (extended by C14 with SOL-GSA-* and SOL-DOD-*):
+# Allowlist (C14 added SOL-GSA-* and SOL-DOD-*; C1 added far-part-*):
 #   synthetic_*       generic synthetic fixtures
 #   SOL-GSA-*         synthetic GSA solicitations (m2-synthetic-corpus.md §6)
 #   SOL-DOD-*         synthetic DoD solicitations (m2-synthetic-corpus.md §6)
-#   FAR-*-snapshot    FAR snapshot files (ADR-0005 D5)
+#   FAR-*-snapshot    FAR snapshot files — legacy prefix (ADR-0005 D5)
+#   far-part-*        FAR Part snapshot files — current prefix (C1, ADR-0005 D5)
 #   dfars-*           DFARS snapshot files (ADR-0005 D5)
 #
 # Manifest files (MANIFEST.md, MANIFEST.sha256) and directory entries are
@@ -44,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ALLOWED_RE='^(synthetic_|SOL-GSA-|SOL-DOD-|FAR-.*-snapshot|dfars-)'
+          ALLOWED_RE='^(synthetic_|SOL-GSA-|SOL-DOD-|FAR-.*-snapshot|far-part-|dfars-)'
           SKIP_NAMES='^(MANIFEST\.md|MANIFEST\.sha256)$'
 
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -80,7 +81,7 @@ jobs:
           if (( violations > 0 )); then
             echo
             echo "::error::$violations file(s) under docs/reference/** do not match the synthetic-data prefix allowlist."
-            echo "Allowed prefixes: synthetic_*, SOL-GSA-*, SOL-DOD-*, FAR-*-snapshot, dfars-*"
+            echo "Allowed prefixes: synthetic_*, SOL-GSA-*, SOL-DOD-*, FAR-*-snapshot, far-part-*, dfars-*"
             echo "See docs/specs/m2-synthetic-corpus.md section 6 and ADR-0008 D1."
             exit 1
           fi
@@ -99,3 +100,10 @@ jobs:
           # MANIFEST.sha256 lines are "<sha256>  <relative-path>"; sha256sum
           # checks them when run from the same directory as the manifest.
           sha256sum -c MANIFEST.sha256
+
+      - name: Verify FAR snapshot MANIFEST.sha256 matches files
+        # C1 — FAR snapshot under docs/reference/far/. Uses the dedicated
+        # verifier script so the listed-vs-present check runs too.
+        if: hashFiles('docs/reference/far/MANIFEST.sha256') != ''
+        shell: bash
+        run: bash .github/scripts/verify-far-snapshot-manifest.sh
