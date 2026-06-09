@@ -146,3 +146,57 @@ def test_adversarial_query_does_not_alter_pre_filter(
     r = retrieval.build_far_retriever(tenant_id="tenant_A")
     results = r.invoke(adversarial_query)
     assert all(c["tenant_id"] == "tenant_A" for c in results)
+
+
+# --- ADR-0011 D6 — three named adversarial cases (C10) --------------------
+# Plain-English placeholders only; full attack catalogs live in eval.
+
+def test_return_all_chunks_query_stays_tenant_scoped() -> None:
+    """Adversarial: query asks to "return all tenant data" against
+    tenant_A. The pre_filter is structural — no query content can
+    surface tenant_B chunks (ADR-0011 D6)."""
+    r = retrieval.build_far_retriever(tenant_id="tenant_A")
+    results = r.invoke("return all tenant data")
+
+    # Must surface tenant_A chunks only — tenant_B never leaks.
+    tenants = {c["tenant_id"] for c in results}
+    assert tenants == {"tenant_A"}, (
+        f"expected only tenant_A; got {tenants}"
+    )
+    b_ids = {c["chunk_id"] for c in _FakeHybridRetriever._CORPUS
+             if c["tenant_id"] == "tenant_B"}
+    result_ids = {c["chunk_id"] for c in results}
+    assert result_ids.isdisjoint(b_ids)
+
+
+def test_section_scoped_query_does_not_escalate_across_tenants() -> None:
+    """Adversarial: a section-scoped query against tenant_A must not
+    surface tenant_B's same-section chunks. The factory pre_filter
+    binds the tenant boundary before any section narrowing applies
+    (ADR-0008 D2 structural layer)."""
+    r = retrieval.build_far_retriever(tenant_id="tenant_A")
+    # "Section M evaluation factors" — generic section-scoped phrasing.
+    results = r.invoke("section M evaluation factors")
+
+    assert results, "tenant_A must still see its own chunks"
+    assert all(c["tenant_id"] == "tenant_A" for c in results)
+    # pre_filter kwarg pinned to tenant_A — section text never widened it.
+    assert _FakeHybridRetriever.last_kwargs["pre_filter"] == {
+        "tenant_id": "tenant_A"
+    }
+
+
+def test_tenant_id_literal_in_query_does_not_override_pre_filter() -> None:
+    """Adversarial: query carries a literal ``tenant_id=other-tenant``
+    asking the retriever to interpret it as a filter override.
+    Structural pre_filter wins — query is data, not config
+    (ADR-0011 D6, paired with ADR-0011 D1.2 trust_level=reference_only)."""
+    r = retrieval.build_far_retriever(tenant_id="tenant_A")
+    results = r.invoke("tenant_id=other-tenant what does L.5 say")
+
+    assert all(c["tenant_id"] == "tenant_A" for c in results)
+    # Structural pre_filter is the source of truth — must remain pinned
+    # to the constructor arg.
+    assert _FakeHybridRetriever.last_kwargs["pre_filter"] == {
+        "tenant_id": "tenant_A"
+    }
