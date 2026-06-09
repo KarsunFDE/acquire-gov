@@ -75,14 +75,63 @@ import { FIXTURE_SOLICITATIONS } from '../../services/mock-fixtures';
             <option value="PUBLISHED">PUBLISHED (CO only)</option>
             <option value="CANCELLED">CANCELLED</option>
           </select>
-          <button style="margin-top:0.5rem">Transition</button>
+          <button style="margin-top:0.5rem" (click)="onTransition()">Transition</button>
           <p style="font-size:0.75rem;color:var(--color-fg-muted);margin-top:0.5rem">
             ⚠ Transitions audit-logged (Item 2 race surface).
           </p>
         </div>
       </div>
     </div>
+
+    <!-- Hard-gate publish modal — FAR 5.705 (Dissemination of synopses).
+         M2 C17 / ADR-0008 D4. Phase 1 client-side friction only; M3 wires
+         the LangGraph interrupt round-trip on top. The PUBLISHED transition
+         is statutorily-reserved CO act (FAR 1.602-1). -->
+    <div class="modal-backdrop" *ngIf="showPublishModal" (click)="closePublishModal()">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pub-modal-title"
+           (click)="$event.stopPropagation()">
+        <h3 id="pub-modal-title">Hard gate — Publish solicitation</h3>
+        <p>
+          Per <a href="https://www.acquisition.gov/far/5.705" target="_blank" rel="noopener">FAR 5.705</a>
+          (Dissemination of synopses) and FAR 1.602-1 (CO authority), publishing a
+          solicitation makes it visible on SAM.gov and binds the agency to its terms.
+          This action is statutorily reserved to the Contracting Officer.
+        </p>
+        <label style="display:flex;align-items:flex-start;gap:0.5rem;margin-top:0.75rem">
+          <input type="checkbox" [(ngModel)]="publishApprovalChecked" name="pubApproval" style="width:auto;margin-top:0.2rem"/>
+          <span class="label-text" style="margin:0">I am the Contracting Officer and I approve publication of this solicitation.</span>
+        </label>
+        <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end">
+          <button class="secondary" (click)="closePublishModal()">Cancel</button>
+          <button (click)="confirmPublish()" [disabled]="!publishApprovalChecked">
+            Confirm + publish
+          </button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--color-fg-muted);margin-top:0.75rem">
+          Backend HITL middleware (LangGraph interrupt) lands in M3 — this modal is
+          the Phase 1 client-side gate.
+        </p>
+      </div>
+    </div>
   `,
+  styles: [`
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-strong);
+      border-radius: 6px;
+      padding: 1.25rem;
+      max-width: 540px;
+      width: 92vw;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .modal h3 { margin-top: 0; color: var(--color-danger); }
+  `],
 })
 export class SolicitationEditorComponent implements OnInit {
   id = '';
@@ -94,6 +143,10 @@ export class SolicitationEditorComponent implements OnInit {
   clauseResults: { id: string; title: string }[] = [];
   targetState = 'INTERNAL_REVIEW';
 
+  // FAR 5.705 hard-gate publish modal (M2 C17).
+  showPublishModal = false;
+  publishApprovalChecked = false;
+
   constructor(private route: ActivatedRoute) {}
 
   ngOnInit(): void {
@@ -103,6 +156,38 @@ export class SolicitationEditorComponent implements OnInit {
     this.sectionC = `C.1 SCOPE. ${this.solicitation.description}`;
     this.sectionL = 'L.5.2 Volume I (Technical) — 60 pages…';
     this.sectionM = 'M.3.1 Technical Approach (40%)\nM.3.2 Management Approach (25%)\nM.3.3 Past Performance (20%)\nM.3.4 Price (15%)';
+  }
+
+  /** Routes the user through the hard-gate modal when transitioning to PUBLISHED. */
+  onTransition(): void {
+    if (this.targetState === 'PUBLISHED') {
+      this.publishApprovalChecked = false;
+      this.showPublishModal = true;
+      return;
+    }
+    // Other transitions audit-log directly (Item 2 race surface preserved).
+    this.applyTransition();
+  }
+
+  closePublishModal(): void {
+    this.showPublishModal = false;
+  }
+
+  confirmPublish(): void {
+    // FAR 5.705 hard-gate: re-verify the CO checkbox at the call site;
+    // template `disabled` is presentation-only.
+    if (!this.publishApprovalChecked) {
+      return;
+    }
+    this.showPublishModal = false;
+    this.applyTransition();
+  }
+
+  private applyTransition(): void {
+    if (this.solicitation) {
+      this.solicitation.status = this.targetState;
+    }
+    // Stub — would call SolicitationService transition endpoint here.
   }
 
   searchClauses(): void {
