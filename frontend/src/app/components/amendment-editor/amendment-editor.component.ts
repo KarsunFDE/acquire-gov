@@ -13,6 +13,12 @@ import { Amendment } from '../../models/amendment';
  * (re-acknowledgement count, schedule effect). CO must approve
  * before publish — this is the W3 Wed HITL #4 (multi-agent handoffs)
  * touchpoint per CLAUDE.md.
+ *
+ * M2 C17: hard-gate amendment modal — FAR 15.206 (Amending the
+ * Solicitation). Issuing an amendment is a statutorily-reserved CO
+ * act; UI requires explicit text-confirmation friction. ADR-0008 D4
+ * defines the locked surface; full LangGraph interrupt wiring lands
+ * in M3 (m2-rollout.md M2-10 deferred), publish/amend modal stays.
  */
 @Component({
   selector: 'app-amendment-editor',
@@ -75,7 +81,7 @@ import { Amendment } from '../../models/amendment';
       </label>
 
       <button class="secondary" (click)="aiDraft()" style="margin-right:0.5rem">▦ AI-draft amendment narrative</button>
-      <button (click)="issue()" [disabled]="!draft.changeSummary">Issue amendment</button>
+      <button (click)="openIssueModal()" [disabled]="!draft.changeSummary">Issue amendment</button>
 
       <div *ngIf="impactPrediction" class="card" style="background:var(--color-bg);margin-top:1rem">
         <strong>Predicted vendor impact:</strong>
@@ -86,7 +92,83 @@ import { Amendment } from '../../models/amendment';
         </ul>
       </div>
     </div>
+
+    <!-- Hard-gate amendment modal — FAR 15.206 (Amending the Solicitation).
+         M2 C17 / ADR-0008 D4. Phase 1 is client-side friction; M3 wires the
+         LangGraph interrupt round-trip. SSA / award sign-off is the M3 forward-ref
+         stub at the bottom. -->
+    <div class="modal-backdrop" *ngIf="showIssueModal" (click)="closeIssueModal()">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="amend-modal-title"
+           (click)="$event.stopPropagation()">
+        <h3 id="amend-modal-title">Hard gate — Issue amendment</h3>
+        <p>
+          Per <a href="https://www.acquisition.gov/far/15.206" target="_blank" rel="noopener">FAR 15.206</a>
+          (Amending the Solicitation), an amendment is a statutorily-reserved act of the
+          Contracting Officer. The amendment will be published to all vendors with
+          proposals-in-progress and re-acknowledgement will be required.
+        </p>
+        <p>
+          <strong>Amendment rationale (required):</strong>
+        </p>
+        <textarea rows="3" [(ngModel)]="amendRationale" name="amendRationale"
+                  placeholder="Why is this amendment necessary? (e.g., scope clarification, schedule change, requirement update)"></textarea>
+        <label style="display:flex;align-items:flex-start;gap:0.5rem;margin-top:0.75rem">
+          <input type="checkbox" [(ngModel)]="amendApprovalChecked" name="amendApproval" style="width:auto;margin-top:0.2rem"/>
+          <span class="label-text" style="margin:0">I am the Contracting Officer and I approve this amendment.</span>
+        </label>
+        <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end">
+          <button class="secondary" (click)="closeIssueModal()">Cancel</button>
+          <button (click)="confirmIssue()"
+                  [disabled]="!amendApprovalChecked || !amendRationale.trim()">
+            Confirm + issue amendment
+          </button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--color-fg-muted);margin-top:0.75rem">
+          Backend HITL middleware (LangGraph interrupt) lands in M3 — this modal is the Phase 1
+          client-side gate. Approval is logged to the audit_log on issuance.
+        </p>
+      </div>
+    </div>
+
+    <!-- M3 forward-ref stubs (SSA / award). Disabled with explanatory tooltip.
+         Kept inline next to amend so the cohort sees the full hard-gate surface
+         in one place. FAR 15.308 (SSA decision document) wiring lands in M3. -->
+    <div class="card" *ngIf="role.currentRole === 'contracting_officer'" style="border-style:dashed;opacity:0.85">
+      <h3>Source-selection authority + award (M3)</h3>
+      <p style="font-size:0.85rem;color:var(--color-fg-muted)">
+        Statutorily-reserved CO acts — FAR 15.308 (SSA decision document) and FAR award
+        signature flow. M3 — agentic workflow proposes; signing requires CO present.
+      </p>
+      <button class="secondary" disabled
+              title="M3 — agentic workflow approves; signs require CO present.">
+        Sign SSA decision document (M3 — disabled)
+      </button>
+      <button class="secondary" disabled
+              title="M3 — agentic workflow approves; signs require CO present."
+              style="margin-left:0.5rem">
+        Sign award (M3 — disabled)
+      </button>
+    </div>
   `,
+  styles: [`
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-strong);
+      border-radius: 6px;
+      padding: 1.25rem;
+      max-width: 540px;
+      width: 92vw;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .modal h3 { margin-top: 0; color: var(--color-danger); }
+    .modal textarea, .modal input { width: 100%; }
+  `],
 })
 export class AmendmentEditorComponent implements OnInit {
   solicitationId = '';
@@ -99,6 +181,11 @@ export class AmendmentEditorComponent implements OnInit {
   };
 
   impactPrediction: { vendorsAffected: number; scheduleDeltaDays: number; likelyQna: number } | null = null;
+
+  // FAR 15.206 hard-gate modal state (M2 C17).
+  showIssueModal = false;
+  amendApprovalChecked = false;
+  amendRationale = '';
 
   constructor(private route: ActivatedRoute, public role: RoleService) {}
 
@@ -128,8 +215,29 @@ export class AmendmentEditorComponent implements OnInit {
     };
   }
 
+  openIssueModal(): void {
+    this.amendApprovalChecked = false;
+    this.amendRationale = '';
+    this.showIssueModal = true;
+  }
+
+  closeIssueModal(): void {
+    this.showIssueModal = false;
+  }
+
+  confirmIssue(): void {
+    // FAR 15.206 hard-gate: the CO approval checkbox + rationale text are
+    // verified again here; template-level `disabled` is presentation only.
+    if (!this.amendApprovalChecked || !this.amendRationale.trim()) {
+      return;
+    }
+    this.showIssueModal = false;
+    this.issue();
+  }
+
   issue(): void {
-    // Stubbed — would call AmendmentService.issue().
+    // Stubbed — would call AmendmentService.issue() with amendRationale +
+    // approval marker in the body so backend can persist the audit_log row.
     const next: Amendment = {
       id: `am-new-${Date.now()}`,
       solicitationId: this.solicitationId,

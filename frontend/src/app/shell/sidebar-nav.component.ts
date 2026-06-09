@@ -68,6 +68,8 @@ const NAV: NavGroup[] = [
     links: [
       { label: 'User & Role Admin', route: '/admin/users', roles: ['sys_admin'] },
       { label: 'System Config', route: '/admin/config', roles: ['sys_admin'] },
+      // M2 C16: corpus ingest UI (sys_admin only).
+      { label: 'Corpus Ingest', route: '/admin/ingest', roles: ['sys_admin'] },
       { label: 'Audit Log Search', route: '/admin/audit', roles: ['sys_admin', 'oig_reviewer'] },
       { label: 'OIG Findings Tracker', route: '/admin/findings', roles: ['sys_admin', 'oig_reviewer'] },
     ],

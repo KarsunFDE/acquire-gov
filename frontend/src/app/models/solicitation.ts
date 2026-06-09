@@ -19,19 +19,46 @@ export interface Solicitation {
   proposalsDueAt?: string;
 }
 
+/**
+ * Per-section provenance + audit shape — defined by M2 UI spec
+ * (docs/specs/m2-ui-far-sections.md §8), consumed by solicitation-service for
+ * its Postgres migration. SHAPE is owned here; backend persistence is a
+ * follow-up Flyway migration on the SB 2.7.18 service (W4 modernization is
+ * Phase 2; do not pre-do).
+ */
+export type SectionProvenance = 'human' | 'ai' | 'ai-edited' | null;
+
+export type GateDecision =
+  | 'pass'
+  | 'hitl'
+  | 'withhold'
+  | 'rerank_unavailable_passthrough';
+
+export interface SectionAudit {
+  provenance: SectionProvenance;
+  /** Correlates to audit_log.request_id (ADR-0008 D3). */
+  aiRequestId?: string | null;
+  lastEditedAt?: string;
+  lastEditedBy?: string;
+  /** Last `rerank_top_score` seen for this section (presentation only — gate authority is `lastGateDecision`). */
+  lastRerankTopScore?: number | null;
+  lastGateDecision?: GateDecision | null;
+}
+
 export interface SolicitationSections {
-  sectionA?: string;  // Solicitation/Contract Form
-  sectionB?: string;  // Supplies/Services + Prices/Costs
-  sectionC?: string;  // Statement of Work (AI-drafted in wizard)
-  sectionD?: string;  // Packaging and Marking
-  sectionE?: string;  // Inspection and Acceptance
-  sectionF?: string;  // Deliveries or Performance
-  sectionG?: string;  // Contract Administration Data
-  sectionH?: string;  // Special Contract Requirements
-  sectionJ?: string;  // List of Attachments
-  sectionK?: string;  // Reps + Certs
-  sectionL?: string;  // Instructions to Offerors (AI-drafted in wizard)
-  sectionM?: string;  // Evaluation Factors
+  sectionA?: string;   sectionAAudit?: SectionAudit;
+  sectionB?: string;   sectionBAudit?: SectionAudit;
+  sectionC?: string;   sectionCAudit?: SectionAudit;
+  sectionD?: string;   sectionDAudit?: SectionAudit;
+  sectionE?: string;   sectionEAudit?: SectionAudit;
+  sectionF?: string;   sectionFAudit?: SectionAudit;
+  sectionG?: string;   sectionGAudit?: SectionAudit;
+  sectionH?: string;   sectionHAudit?: SectionAudit;
+  // Section I intentionally absent — retrieved-only (FAR Part 52 clause list), not edited.
+  sectionJ?: string;   sectionJAudit?: SectionAudit;
+  sectionK?: string;   sectionKAudit?: SectionAudit;
+  sectionL?: string;   sectionLAudit?: SectionAudit;
+  sectionM?: string;   sectionMAudit?: SectionAudit;
 }
 
 export interface SolicitationCreate {
@@ -57,3 +84,43 @@ export type SolicitationState =
   | 'AMENDED'
   | 'CLOSED'
   | 'CANCELLED';
+
+/**
+ * Response from POST /draft-solicitation/section (orchestrator).
+ *
+ * Locked interface — see docs/specs/m2-retrieval-pipeline.md §2 and
+ * docs/specs/m2-ui-far-sections.md §2. UI generates X-Request-ID
+ * (uuid v4) client-side and passes it on the header; orchestrator
+ * echoes it back on `request_id`.
+ */
+export interface DraftSectionRequest {
+  section_id: string;          // 'A'..'M' (excluding 'I')
+  solicitation_id: string;
+  query?: string;
+  constraints?: string;
+}
+
+export interface DraftSectionCitation {
+  chunk_id: string;
+  text: string;
+  far_part: string;
+  far_section: string;
+  far_clause: string;
+  snapshot_date: string;
+  relevance_score: number;
+}
+
+export interface DraftSectionResponse {
+  outcome:
+    | 'draft_returned'
+    | 'hitl_pending'
+    | 'withheld'
+    | 'citation_verification_failed';
+  section_text: string | null;
+  section_id: string;
+  citations: DraftSectionCitation[];
+  gate_decision: GateDecision;
+  requires_human_review: boolean;
+  rerank_top_score: number | null;
+  request_id: string;
+}

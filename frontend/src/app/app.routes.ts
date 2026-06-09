@@ -21,6 +21,7 @@ import { ContractAdminComponent } from './components/contract-admin/contract-adm
 import { CparReviewComponent } from './components/cpar-review/cpar-review.component';
 import { AdminUsersComponent } from './components/admin-users/admin-users.component';
 import { AdminConfigComponent } from './components/admin-config/admin-config.component';
+import { AdminIngestComponent } from './components/admin-ingest/admin-ingest.component';
 import { AuditSearchComponent } from './components/audit-search/audit-search.component';
 import { FindingsTrackerComponent } from './components/findings-tracker/findings-tracker.component';
 import { roleGuard } from './services/role.guard';
@@ -121,6 +122,8 @@ export const routes: Routes = [
   // — Admin
   { path: 'admin/users', component: AdminUsersComponent, canMatch: [roleGuard('sys_admin')] },
   { path: 'admin/config', component: AdminConfigComponent, canMatch: [roleGuard('sys_admin')] },
+  // M2 C16: corpus ingest UI — sys_admin only. POST /ingest/document on the orchestrator.
+  { path: 'admin/ingest', component: AdminIngestComponent, canMatch: [roleGuard('sys_admin')] },
   {
     path: 'admin/audit',
     component: AuditSearchComponent,
