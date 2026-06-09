@@ -25,9 +25,11 @@ AWS_PROFILE / AWS_ACCESS_KEY_ID / EC2 IMDS resolves.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
+import random
 from typing import Any
 
 try:
@@ -45,6 +47,18 @@ BEDROCK_MODEL_ID = os.environ.get(
     "anthropic.claude-3-7-sonnet-20250219-v1:0",
 )
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+
+# C3 — Titan v2 @ 512 (ADR-0005 D2 / m2-retrieval-pipeline.md §10).
+# Read from app.config when available so env overrides flow through one
+# place; fall back to spec defaults if config has not loaded (parallel-
+# track import safety).
+try:
+    from app import config as _cfg  # type: ignore[import-not-found]
+    _EMBED_MODEL_ID = _cfg.BEDROCK_EMBED_MODEL
+    _EMBED_DIMS = _cfg.BEDROCK_EMBED_DIMS
+except ImportError:  # pragma: no cover
+    _EMBED_MODEL_ID = os.environ.get("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0")
+    _EMBED_DIMS = int(os.environ.get("BEDROCK_EMBED_DIMS", "512"))
 
 
 _client = None
@@ -122,3 +136,79 @@ def _stub(prompt: str) -> dict[str, Any]:
         "region": AWS_REGION,
         "stub": True,
     }
+
+
+# ---------- C3 — embeddings (Titan v2 @ 512) -----------------------------
+
+def _stub_embed(text: str, dims: int) -> list[float]:
+    """Deterministic stub vector — hash-seeded for repeatable test runs.
+
+    Stub path triggers when AWS_BEARER_TOKEN_BEDROCK is unset and boto3
+    cannot resolve any other credential source. Same fallback contract as
+    invoke_model above.
+    """
+    seed = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")
+    rng = random.Random(seed)
+    return [rng.uniform(-1.0, 1.0) for _ in range(dims)]
+
+
+def _real_embed_one(client: Any, text: str) -> list[float]:
+    """One Titan v2 invocation; returns the 512-float embedding."""
+    body = json.dumps({
+        "inputText": text,
+        "dimensions": _EMBED_DIMS,
+        "normalize": True,
+    }).encode("utf-8")
+    resp = client.invoke_model(
+        modelId=_EMBED_MODEL_ID,
+        contentType="application/json",
+        accept="application/json",
+        body=body,
+    )
+    payload = json.loads(resp["body"].read())
+    vec = payload.get("embedding") or []
+    if len(vec) != _EMBED_DIMS:
+        log.warning(
+            "titan-embed returned %d dims; expected %d", len(vec), _EMBED_DIMS
+        )
+    return list(vec)
+
+
+def embed_documents(texts: list[str]) -> list[list[float]]:
+    """Batch-embed ``texts`` with Titan v2 @ 512 dims.
+
+    Returns one ``list[float]`` per input. Empty input → empty output.
+
+    Failure / stub behavior:
+      - No boto3 → all-stub.
+      - boto3 present but credentials missing → per-call retry that
+        raises NoCredentialsError; we catch and return stubs (matches
+        invoke_model fallback contract, ADR-0005 D2 stub).
+      - Per-item Bedrock 5xx → stub for that item; log warning. Full
+        tenacity-retry envelope is C9 territory (m2-retrieval-pipeline.md
+        §3 stage 5).
+
+    Spec: docs/specs/m2-retrieval-pipeline.md §10 BEDROCK_EMBED_DIMS=512;
+    ADR-0005 D2 quality-cost lever.
+    """
+    if not texts:
+        return []
+
+    client = _get_client()
+    if client is None:
+        log.info("bedrock-embed stub-fallback (no boto3 / no credentials)")
+        return [_stub_embed(t, _EMBED_DIMS) for t in texts]
+
+    out: list[list[float]] = []
+    for t in texts:
+        try:
+            out.append(_real_embed_one(client, t))
+        except (NoCredentialsError, BotoCoreError, ClientError) as exc:
+            log.warning("titan-embed failed (%s); stub for this item", exc)
+            out.append(_stub_embed(t, _EMBED_DIMS))
+    return out
+
+
+def embed_query(text: str) -> list[float]:
+    """Single-text embed — convenience for the /retrieve query path."""
+    return embed_documents([text])[0]
