@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/block-env-access.py"
+            "command": "python \"C:/Users/CharlesJester/Documents/2026-Training/KarsunFDE/acquire-gov/.claude/hooks/block-env-access.py\""
           }
         ]
       }
