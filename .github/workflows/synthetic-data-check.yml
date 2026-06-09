@@ -1,0 +1,101 @@
+name: synthetic-data-check
+
+# Per ADR-0008 D1 + docs/specs/m2-synthetic-corpus.md §6.
+#
+# Enforces the synthetic-data-only contract on every PR diff under the
+# reference corpora. Any new or renamed file whose name does not start with
+# one of the allowlisted prefixes fails CI — protects against accidental
+# inclusion of real SAM.gov solicitation text, real CO names, or any other
+# non-public-domain real procurement copy.
+#
+# Allowlist (extended by C14 with SOL-GSA-* and SOL-DOD-*):
+#   synthetic_*       generic synthetic fixtures
+#   SOL-GSA-*         synthetic GSA solicitations (m2-synthetic-corpus.md §6)
+#   SOL-DOD-*         synthetic DoD solicitations (m2-synthetic-corpus.md §6)
+#   FAR-*-snapshot    FAR snapshot files (ADR-0005 D5)
+#   dfars-*           DFARS snapshot files (ADR-0005 D5)
+#
+# Manifest files (MANIFEST.md, MANIFEST.sha256) and directory entries are
+# skipped — they are not data files.
+
+on:
+  pull_request:
+    paths:
+      - 'docs/reference/synthetic-solicitations/**'
+      - 'docs/reference/far/**'
+      - 'docs/reference/dfars/**'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/reference/synthetic-solicitations/**'
+      - 'docs/reference/far/**'
+      - 'docs/reference/dfars/**'
+
+jobs:
+  prefix-allowlist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce synthetic-data prefix allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ALLOWED_RE='^(synthetic_|SOL-GSA-|SOL-DOD-|FAR-.*-snapshot|dfars-)'
+          SKIP_NAMES='^(MANIFEST\.md|MANIFEST\.sha256)$'
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            CHANGED=$(git diff --name-only --diff-filter=AR "$BASE" "$HEAD" -- \
+              'docs/reference/synthetic-solicitations/' \
+              'docs/reference/far/' \
+              'docs/reference/dfars/' || true)
+          else
+            CHANGED=$(git diff --name-only --diff-filter=AR HEAD~1 HEAD -- \
+              'docs/reference/synthetic-solicitations/' \
+              'docs/reference/far/' \
+              'docs/reference/dfars/' || true)
+          fi
+
+          violations=0
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            name=$(basename "$path")
+            if [[ "$name" =~ $SKIP_NAMES ]]; then
+              echo "skip-manifest: $path"
+              continue
+            fi
+            if [[ "$name" =~ $ALLOWED_RE ]]; then
+              echo "ok:    $path"
+            else
+              echo "BLOCK: $path (filename does not match synthetic-data allowlist)"
+              violations=$((violations + 1))
+            fi
+          done <<< "$CHANGED"
+
+          if (( violations > 0 )); then
+            echo
+            echo "::error::$violations file(s) under docs/reference/** do not match the synthetic-data prefix allowlist."
+            echo "Allowed prefixes: synthetic_*, SOL-GSA-*, SOL-DOD-*, FAR-*-snapshot, dfars-*"
+            echo "See docs/specs/m2-synthetic-corpus.md section 6 and ADR-0008 D1."
+            exit 1
+          fi
+
+  manifest-sha256-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify synthetic-solicitations MANIFEST.sha256 matches files
+        if: hashFiles('docs/reference/synthetic-solicitations/MANIFEST.sha256') != ''
+        shell: bash
+        working-directory: docs/reference/synthetic-solicitations
+        run: |
+          set -euo pipefail
+          # MANIFEST.sha256 lines are "<sha256>  <relative-path>"; sha256sum
+          # checks them when run from the same directory as the manifest.
+          sha256sum -c MANIFEST.sha256
