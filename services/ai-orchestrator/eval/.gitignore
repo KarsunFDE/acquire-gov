@@ -1,0 +1,6 @@
+# Per docs/specs/m2-eval-harness.md §12 — per-run artifacts are gitignored.
+# Keep the dirs via .keep tombstones so CI artifact paths exist on clean clones.
+judge_decisions/*
+!judge_decisions/.keep
+results/*
+!results/.keep
