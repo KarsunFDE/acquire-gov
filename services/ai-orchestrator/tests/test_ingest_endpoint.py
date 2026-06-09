@@ -210,3 +210,114 @@ def test_unsupported_format_returns_422(client: TestClient) -> None:
     )
     assert resp.status_code == 422
     assert resp.json()["error"] == "unsupported_format"
+
+
+# ---------- C13 — pdf + json-prechunked at the endpoint ----------
+
+def _make_pdf(text: str) -> bytes:
+    """Same helper pattern as in test_ingest_loaders._make_pdf."""
+    from pypdf import PdfWriter
+    from pypdf.generic import (
+        DictionaryObject,
+        NameObject,
+        StreamObject,
+    )
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=612, height=792)
+    font_dict = DictionaryObject({
+        NameObject("/Type"): NameObject("/Font"),
+        NameObject("/Subtype"): NameObject("/Type1"),
+        NameObject("/BaseFont"): NameObject("/Helvetica"),
+    })
+    if "/Resources" not in page:
+        page[NameObject("/Resources")] = DictionaryObject()
+    resources = page["/Resources"]
+    if "/Font" not in resources:
+        resources[NameObject("/Font")] = DictionaryObject()
+    resources["/Font"][NameObject("/F1")] = font_dict
+
+    safe = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    stream_bytes = f"BT /F1 12 Tf 72 720 Td ({safe}) Tj ET".encode("utf-8")
+    content_stream = StreamObject()
+    content_stream._data = stream_bytes
+    page[NameObject("/Contents")] = content_stream
+
+    import io as _io
+    buf = _io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def test_pdf_format_endpoint_returns_200(client: TestClient, app: FastAPI) -> None:
+    body = "The Contracting Officer shall execute this BPA per FAR Part 8. " * 4
+    pdf_bytes = _make_pdf(body)
+    resp = client.post(
+        "/ingest/document",
+        headers={"X-Tenant-ID": "agency-xyz"},
+        data={"metadata": _meta(source_doc_name="scan.pdf"), "format": "pdf"},
+        files={"file": ("scan.pdf", pdf_bytes, "application/pdf")},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["chunks_inserted"] >= 1
+
+
+def test_pdf_scanned_image_returns_422_pdf_text_extraction_failed(
+    client: TestClient, app: FastAPI,
+) -> None:
+    from pypdf import PdfWriter
+    import io as _io
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=612, height=792)
+    buf = _io.BytesIO()
+    writer.write(buf)
+
+    resp = client.post(
+        "/ingest/document",
+        headers={"X-Tenant-ID": "agency-xyz"},
+        data={"metadata": _meta(source_doc_name="scanned.pdf"), "format": "pdf"},
+        files={"file": ("scanned.pdf", buf.getvalue(), "application/pdf")},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["error"] == "pdf_text_extraction_failed"
+    # Audit row written per spec §8.1
+    assert app.state.audit_records[-1]["outcome"] == "pdf_text_extraction_failed"
+
+
+def test_json_prechunked_valid_bypasses_splitter(
+    client: TestClient, app: FastAPI,
+) -> None:
+    raw = json.dumps({
+        "chunks": [
+            {"text": "first short chunk - intentionally short",
+             "metadata": {"far_part": "I", "far_section": "C"}},
+            {"text": "second short chunk - also intentionally short",
+             "metadata": {"far_clause": "52.212-4"}},
+        ]
+    })
+    resp = client.post(
+        "/ingest/document",
+        headers={"X-Tenant-ID": "agency-xyz"},
+        data={"metadata": _meta(source_doc_name="prechunked.json"),
+              "format": "json-prechunked"},
+        files={"file": ("p.json", raw, "application/json")},
+    )
+    assert resp.status_code == 200, resp.text
+    # Caller-asserted chunk count preserved — second-stage splitter SKIPPED
+    assert resp.json()["chunks_inserted"] == 2
+    # First inserted chunk carries the caller-provided section metadata
+    assert app.state.inserted_chunks[0]["far_section"] == "C"
+    assert app.state.inserted_chunks[1]["far_clause"] == "52.212-4"
+
+
+def test_json_prechunked_malformed_returns_422(client: TestClient) -> None:
+    resp = client.post(
+        "/ingest/document",
+        headers={"X-Tenant-ID": "agency-xyz"},
+        data={"metadata": _meta(source_doc_name="bad.json"),
+              "format": "json-prechunked"},
+        files={"file": ("p.json", b"{not json", "application/json")},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["error"] == "json_prechunked_malformed"

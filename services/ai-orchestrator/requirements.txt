@@ -34,3 +34,7 @@ pinecone-client==5.0.1
 
 # Form upload support for future endpoints
 python-multipart==0.0.12
+
+# M2 ingest pipeline — PDF format adapter (m2-synthetic-corpus.md §9.3, C13).
+# OCR explicitly out of scope (Phase 1.5); pypdf text-extraction only.
+pypdf>=4.0,<5

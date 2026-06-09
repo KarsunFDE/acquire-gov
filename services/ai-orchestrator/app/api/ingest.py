@@ -283,6 +283,38 @@ async def ingest_document(
     except HTTPException:
         raise
     except Exception as exc:
+        # Map loader-specific errors to spec-defined outcomes (§8.1).
+        err_name = type(exc).__name__
+        if err_name == "PdfTextExtractionFailed":
+            _audit({
+                "action": "ingest_document",
+                "outcome": "pdf_text_extraction_failed",
+                "tenant_id": x_tenant_id,
+                "request_id": request_id,
+                "source_doc_name": meta_obj.source_doc_name,
+                "doc_class": meta_obj.doc_class,
+                "snapshot_date": meta_obj.snapshot_date,
+                "format": format,
+                "chunks_inserted": 0,
+                "actor_role": "admin",
+            })
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "error": "pdf_text_extraction_failed",
+                    "message": str(exc),
+                    "request_id": request_id,
+                },
+            )
+        if err_name == "JsonPrechunkedMalformed":
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "error": "json_prechunked_malformed",
+                    "message": str(exc),
+                    "request_id": request_id,
+                },
+            )
         log.exception("loader failed format=%s source_doc=%s", format, meta_obj.source_doc_name)
         return JSONResponse(
             status_code=422,
