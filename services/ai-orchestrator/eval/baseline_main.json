@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "note": "Bootstrap stub. Per docs/specs/m2-eval-harness.md section 15 + section 4.1, the first PR to merge D3 stamps real numbers via .github/workflows/rag-eval-gate.yml post-merge. Until then ratchet.py falls back to absolute_floors only.",
+  "git_sha": null,
+  "stamped_at": null,
+  "metrics": {
+    "faithfulness": null,
+    "answer_relevancy": null,
+    "context_precision": null,
+    "context_recall": null
+  }
+}

@@ -34,3 +34,10 @@ pinecone-client==5.0.1
 
 # Form upload support for future endpoints
 python-multipart==0.0.12
+
+# Eval harness (docs/specs/m2-eval-harness.md). ragas is used only by
+# services/ai-orchestrator/eval/* — the production /retrieve and
+# /draft-solicitation/section paths do not import ragas. LiteLLM is the
+# RAGAS->Bedrock bridge per ADR-0009 D2 (Nova Micro judge wiring).
+ragas>=0.2,<1
+litellm>=1.50,<2

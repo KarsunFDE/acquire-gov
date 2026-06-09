@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "note": "Bootstrap stub. Per docs/specs/m2-eval-harness.md section 6.3 + section 15, soft-signal baseline stamped on first merge-to-main CI run after D3 lands. Until then the latency/token regression check emits raw values, no comparison.",
+  "git_sha": null,
+  "stamped_at": null,
+  "p50_latency_ms": null,
+  "p95_latency_ms": null,
+  "total_tokens": null
+}
