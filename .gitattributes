@@ -1,0 +1,9 @@
+# Corpus snapshots — hashes in MANIFEST.sha256 are over LF bytes.
+# Windows `autocrlf=true` would otherwise convert to CRLF on checkout and
+# break the manifest verifier. See docs/specs/m2-handoff.md §2.3.
+docs/reference/far/*.md                            text eol=lf
+docs/reference/far/MANIFEST.sha256                 text eol=lf
+docs/reference/far/MANIFEST.md                     text eol=lf
+docs/reference/synthetic-solicitations/**/*.md     text eol=lf
+docs/reference/synthetic-solicitations/MANIFEST.sha256  text eol=lf
+docs/reference/synthetic-solicitations/MANIFEST.md      text eol=lf
