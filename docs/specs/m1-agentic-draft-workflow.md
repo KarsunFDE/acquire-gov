@@ -2036,4 +2036,276 @@ curl -X POST http://localhost:8000/draft-solicitation/batch/resume \
 
 ---
 
-End of spec. Implementer entry point: PR A1 (§15) for the ADR-0012 baseline, then PR G1 (§18.12 mapping) for the ADR-0014 per-AI-Part multi-agent extension.
+End of fan-out shape. Continue to §19 for ADR-0015 preflight validation (lands inside the existing rollout slots — no new PR slots).
+
+---
+
+## 19. Preflight input validation (ADR-0015)
+
+ADR-0015 adds a programmatic preflight stage between `QueryGuardrails` and agent construction. Lands inside existing rollout PRs (D1 absorbs single-section preflight; I3 absorbs batch preflight; F1 absorbs wizard reactive-forms migration). No new rollout slots.
+
+### 19.1 Module addition
+
+```
+app/
+├── api/
+│   ├── preflight.py                       # NEW — PreflightResult Pydantic + preflight_single_section + preflight_batch
+│   ├── draft.py                           # MODIFIED — invoke preflight after guardrails, before build_section_drafter_agent
+│   ├── batch.py                           # MODIFIED — invoke preflight after guardrails, before coordinator graph
+│   └── batch_resume.py                    # UNCHANGED — resume re-enters checkpointed state; no preflight needed
+```
+
+### 19.2 Preflight Pydantic + functions
+
+```python
+# app/api/preflight.py
+from pydantic import BaseModel, Field
+from app.agents.schemas import DraftSectionRequest, BatchDraftRequest
+
+
+class PreflightResult(BaseModel):
+    ready: bool
+    missing_required: list[str] = []
+    degraded_context: list[str] = []
+
+
+HARD_REQUIRED_SINGLE = ["solicitation_id", "section_id", "contract_type"]
+HARD_REQUIRED_SINGLE_CONTENT_SECTIONS = ["naics", "set_aside"]   # extra fields when section_id ∈ {C, H}
+SOFT_REQUIRED_SINGLE = ["agency_supplement"]
+HARD_REQUIRED_BATCH = ["solicitation_id", "naics", "set_aside", "contract_type", "agency_supplement"]
+
+
+def _is_empty(v) -> bool:
+    return v in (None, "")
+
+
+def preflight_single_section(request: DraftSectionRequest, tenant_id: str) -> PreflightResult:
+    missing = [f for f in HARD_REQUIRED_SINGLE if _is_empty(getattr(request, f, None))]
+    if request.section_id in {"C", "H"}:
+        missing += [f for f in HARD_REQUIRED_SINGLE_CONTENT_SECTIONS
+                    if _is_empty(getattr(request, f, None))]
+    if _is_empty(tenant_id):
+        missing.append("tenant_id")    # belt-and-suspenders; ADR-0008 D2 enforces at factory
+    degraded = [f for f in SOFT_REQUIRED_SINGLE if _is_empty(getattr(request, f, None))]
+    # Also degrade-flag naics/set_aside when section_id ∈ {K, L, M} (soft for those, hard for C/H).
+    if request.section_id in {"K", "L", "M"}:
+        degraded += [f for f in HARD_REQUIRED_SINGLE_CONTENT_SECTIONS
+                     if _is_empty(getattr(request, f, None))]
+    return PreflightResult(ready=not missing, missing_required=missing, degraded_context=degraded)
+
+
+def preflight_batch(request: BatchDraftRequest, tenant_id: str) -> PreflightResult:
+    missing = [f for f in HARD_REQUIRED_BATCH if _is_empty(getattr(request, f, None))]
+    if not request.provenances or all(v is not None for v in request.provenances.values()):
+        missing.append("at_least_one_null_provenance")
+    if _is_empty(tenant_id):
+        missing.append("tenant_id")
+    return PreflightResult(ready=not missing, missing_required=missing, degraded_context=[])
+```
+
+### 19.3 Handler integration
+
+```python
+# app/api/draft.py (modified — inserts after QueryGuardrails, before agent construction)
+@router.post("/section")
+@limiter.limit("30/minute;1000/day")
+async def post_draft_section(request: Request, body: DraftSectionRequest, ...):
+    tenant_id = request.headers.get("X-Tenant-ID")
+
+    # 1. QueryGuardrails (existing; ADR-0011 D2)
+    guard = QueryGuardrails.evaluate(query=body.query or "", tenant_id=tenant_id)
+    if guard.action == "reject":
+        write_audit({..., "action": "query_blocked", "outcome": "query_blocked", ...})
+        raise HTTPException(403, detail={"detail": "query_blocked", "reason": guard.reason})
+
+    # 2. Preflight (NEW; ADR-0015 D2)
+    preflight = preflight_single_section(body, tenant_id)
+    if not preflight.ready:
+        write_audit({..., "action": "preflight_rejected", "outcome": "preflight_rejected",
+                     "preflight": preflight.model_dump()})
+        raise HTTPException(422, detail={
+            "detail": "preflight_rejected_missing_required",
+            "missing_required": preflight.missing_required,
+        })
+
+    # 3. Build agent + invoke (existing ADR-0012 path)
+    agent = build_section_drafter_agent()
+    result = agent.invoke({...}, config={...})
+    final: FinalDraftSection = result["structured_response"]
+    final.degraded_context = preflight.degraded_context        # ADR-0015 D5
+
+    # 4. Audit row with preflight sub-record
+    write_audit({..., "preflight": preflight.model_dump(), ...})
+    return final
+```
+
+Batch handler at `app/api/batch.py` adds the same shape with `preflight_batch(...)` substituted. `/batch/resume` skips preflight — the checkpointed state already passed preflight on the original `/batch` call.
+
+### 19.4 DraftSectionRequest schema update (extends spec §4.1)
+
+```python
+class DraftSectionRequest(BaseModel):
+    section_id: Literal["A","B","C","D","E","F","G","H","J","K","L","M"]
+    solicitation_id: str = Field(min_length=1, max_length=128)
+
+    # NEW per ADR-0015 D3 — Step 1 metadata; tier-validated by preflight, not Pydantic.
+    naics: str | None = None
+    set_aside: str | None = None
+    contract_type: str | None = None
+    agency_supplement: str | None = None
+
+    query: str | None = Field(default=None, max_length=config.MAX_QUERY_CHARS)
+    constraints: str | None = Field(default=None, max_length=1000)
+```
+
+### 19.5 FinalDraftSection schema update (extends §6.2)
+
+```python
+class FinalDraftSection(BaseModel):
+    # ... all existing ADR-0012 D3 fields ...
+    degraded_context: list[str] = Field(default_factory=list)    # NEW per ADR-0015 D5
+```
+
+Wizard renders inline banner on the section-card when `degraded_context` is non-empty.
+
+### 19.6 Audit row preflight sub-record (extends §11)
+
+```python
+{
+    ...standard ADR-0008 D3 fields...,
+    "preflight": {
+        "ready": true,
+        "missing_required": [],
+        "degraded_context": ["agency_supplement"],
+    },
+}
+
+# 422 case (rejected before agent construction):
+{
+    ...standard fields...,
+    "action": "preflight_rejected",
+    "outcome": "preflight_rejected",
+    "preflight": {
+        "ready": false,
+        "missing_required": ["contract_type", "naics", "set_aside"],
+        "degraded_context": [],
+    },
+    "generation": null,    # no agent ran
+}
+```
+
+### 19.7 Frontend reactive-forms migration (ADR-0015 D4)
+
+Component changes in `frontend/src/app/components/solicitation-wizard/`:
+
+1. **Step 1 → reactive forms.** Replace `[(ngModel)]` in `solicitation-wizard.component.ts:56-103` with a `FormGroup`:
+
+```typescript
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+
+step1Form: FormGroup = this.fb.group({
+  title: ['', Validators.required],
+  agencyId: ['', Validators.required],
+  naics: ['', Validators.required],
+  setAside: ['', Validators.required],
+  contractType: ['', Validators.required],
+  // optional:
+  noticeType: [''],
+  ceilingValue: [null],
+  description: [''],
+});
+
+constructor(private fb: FormBuilder, ...) {}
+
+isStep1ContextReady(): boolean {
+  return this.step1Form.valid;
+}
+```
+
+2. **Next-button gate.** `solicitation-wizard.component.ts:304` gets:
+```html
+<button *ngIf="step === 0" [disabled]="!step1Form.valid" (click)="next()">Next →</button>
+```
+
+3. **AI-draft button gate.** `section-card.component.ts:71` gets a new `@Input` and binding:
+```typescript
+@Input() step1Ready: boolean = false;
+
+// template:
+[disabled]="drafting || !step1Ready"
+```
+Parent wizard passes `[step1Ready]="isStep1ContextReady()"` on every `<app-section-card>` instance.
+
+4. **degraded_context banner.** When `lastResponse.degraded_context` is non-empty:
+```html
+<div class="warn-banner" *ngIf="lastResponse?.degraded_context?.length">
+  ⚠ Drafted without {{ lastResponse.degraded_context.join(', ') }}. Retrieval quality may be lower.
+  <button (click)="fillMissingContext()">Fill in Step 1 →</button>
+</div>
+```
+
+5. **draftSection() payload.** `solicitation.service.ts:58-79` gains the metadata fields in the POST body:
+```typescript
+const body: DraftSectionRequest = {
+  section_id: sectionId,
+  solicitation_id: solicitationId,
+  naics: step1.naics,
+  set_aside: step1.setAside,
+  contract_type: step1.contractType,
+  agency_supplement: step1.agencySupplement || null,
+  query: opts?.query,
+  constraints: opts?.constraints,
+};
+```
+The parent wizard component injects the Step 1 form values when calling `svc.draftSection(...)`. Service-level signature does not change beyond the new body fields.
+
+### 19.8 Tests
+
+Unit (`tests/api/test_preflight.py`):
+- `test_single_section_c_requires_naics_set_aside_contract_type` — POST with section_id=C and missing naics → 422 with `missing_required=["naics", ...]`.
+- `test_single_section_l_naics_soft` — POST with section_id=L and missing naics → 200 with `degraded_context=["naics"]`.
+- `test_batch_requires_full_step1` — POST `/batch` with missing contract_type → 422.
+- `test_preflight_rejected_writes_audit` — assert audit row `action="preflight_rejected"` exists with the `missing_required` field list.
+- `test_preflight_does_not_run_for_resume` — POST `/batch/resume` with a valid `batch_run_id` and an empty body → does NOT 422 on missing fields (resume re-enters checkpointed state).
+
+Integration (`tests/api/test_draft_preflight_integration.py`):
+- Happy-path: all Step 1 fields present → preflight ready → agent runs → response includes `degraded_context=[]`.
+- Soft-degraded: agency_supplement missing on Section L draft → preflight degraded → agent runs → response includes `degraded_context=["agency_supplement"]`.
+- Hard-rejected: contract_type missing → 422 → no agent run → audit row written.
+
+Frontend (`frontend/src/app/components/solicitation-wizard/`):
+- `solicitation-wizard.component.spec.ts` — step1Form.valid=false → Next button `[disabled]=true`; step1Form.valid=true → enabled.
+- `section-card.component.spec.ts` — `[step1Ready]=false` → AI-draft button disabled with tooltip "Complete Step 1 first".
+
+### 19.9 Verification one-liners
+
+```bash
+# 422 on missing required
+curl -X POST http://localhost:8000/draft-solicitation/section \
+  -H "X-Tenant-ID: agency-test" -H "X-Request-ID: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{"section_id":"C","solicitation_id":"sol-001"}'
+# Expected: 422 detail=preflight_rejected_missing_required, missing_required=["contract_type","naics","set_aside"]
+
+# 200 with degraded_context on Section L missing agency_supplement
+curl -X POST http://localhost:8000/draft-solicitation/section \
+  -H "X-Tenant-ID: agency-test" -H "X-Request-ID: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{"section_id":"L","solicitation_id":"sol-001","naics":"541512","set_aside":"SDVOSB","contract_type":"FFP"}'
+# Expected: 200, FinalDraftSection.degraded_context=["agency_supplement"]
+```
+
+### 19.10 PR slot impact
+
+No new PR slots. Absorbed into existing rollout:
+
+- **§15 PR D1** (handler rewrite) — adds preflight call + `DraftSectionRequest` schema extension + `FinalDraftSection.degraded_context` field. +0.5 day.
+- **§18.12.2 PR I3** (`/batch` + `/batch/resume`) — adds `preflight_batch` call. +0.25 day.
+- **§15 PR F1** (frontend) — Step 1 reactive-forms migration + `[step1Ready]` propagation + degraded_context banner. +0.5 day.
+- **§13 / §18.8 tests** — preflight test files added to PR D1 + I3 scope. +0.25 day each.
+
+Total impact: ~1.5 implementer-days across three already-planned PRs.
+
+---
+
+End of spec. Implementer entry point: PR A1 (§15) for the ADR-0012 baseline, then PR G1 (§18.12 mapping) for the ADR-0014 per-AI-Part extension. ADR-0015 preflight lands inside PRs D1 + I3 + F1 — no separate sequence.

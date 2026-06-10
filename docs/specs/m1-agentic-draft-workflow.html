@@ -427,16 +427,20 @@
   <div class="tier">
     <div class="tier-label">Entry</div>
     <div class="agent-card" style="border-color: var(--accent);">
-      <div class="agent-name">FastAPI handler</div>
-      <div class="agent-meta">app/api/draft.py · app/api/coordinator.py</div>
+      <div class="agent-name">FastAPI handler · preflight gate</div>
+      <div class="agent-meta">app/api/draft.py · app/api/batch.py · app/api/preflight.py</div>
       <div class="agent-chips">
         <span class="chip chip-prog">programmatic</span>
         <span class="chip chip-low">low cost</span>
+        <span class="chip chip-hard">preflight 422</span>
       </div>
       <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px;">
-        Two routes:<br>
-        <code>POST /draft-solicitation/section</code> — single section, direct to drafter<br>
-        <code>POST /draft-solicitation/batch</code> — coordinator path
+        Routes:<br>
+        <code>POST /draft-solicitation/section</code> — single section<br>
+        <code>POST /draft-solicitation/batch</code> — coordinator path<br>
+        <code>POST /draft-solicitation/batch/resume</code> — resume paused batch<br>
+        <code>POST /draft-solicitation/critic</code> — standalone Step 12 critic<br><br>
+        Every route runs rate-limit → guardrails → <strong>preflight</strong> (ADR-0015) BEFORE any agent is built. Hard-required miss → 422. Soft-required miss → proceed + degraded_context flag.
       </div>
     </div>
   </div>
@@ -736,22 +740,69 @@
   <!-- Stage 0 — handler entry -->
   <div class="stage">
     <div class="row1">
-      <span class="name">0 · Handler entry</span>
+      <span class="name">0 · Handler entry · rate-limit + guardrails</span>
       <span class="chip chip-prog">programmatic</span>
       <span class="chip chip-free">free</span>
       <span class="file">app/api/draft.py</span>
     </div>
-    <div class="desc">Rate-limit (slowapi · per <code>X-Tenant-ID</code>) → QueryGuardrails → build <code>SectionPlanContext</code> → construct <code>create_agent</code>.</div>
+    <div class="desc">Rate-limit (slowapi · per <code>X-Tenant-ID</code>) → QueryGuardrails (ADR-0011 D2 jailbreak + length + Nova-Micro stub).</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 0a — preflight validation (ADR-0015) -->
+  <div class="stage" style="border-color: var(--hard);">
+    <div class="row1">
+      <span class="name">0a · <code>preflight_check</code> · three-tier required-field gate</span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="chip chip-hard">422 on hard-miss</span>
+      <span class="file">app/api/preflight.py</span>
+    </div>
+    <div class="desc">
+      <strong>NEW per ADR-0015.</strong> Closes the gap where the wizard's Step 1 form had zero <code>Validators.required</code> and the AI-draft button was always clickable. Three tiers per section_id:
+      <ul style="margin: 4px 0 0 12px; font-size: 12.5px;">
+        <li><strong>Hard-required</strong> → 422 with <code>missing_required[]</code>. Tenant, solicitation_id, section_id, contract_type. Naics + set_aside added for sections C, H.</li>
+        <li><strong>Soft-required</strong> → proceed; populate <code>degraded_context[]</code> in response. Agency_supplement always; naics + set_aside for K/L/M.</li>
+        <li><strong>Optional</strong> → silent. Query, constraints, ceiling_value.</li>
+      </ul>
+      Rejected requests still write audit row (<code>action="preflight_rejected"</code>); adversarial probe patterns observable in audit replay.
+    </div>
+    <div class="schema-pop"><span class="title">→ produces PreflightResult</span>class PreflightResult(BaseModel):
+    ready: bool
+    missing_required: list[str] = []
+    degraded_context: list[str] = []
+
+# Hard-rejected → 422 BEFORE agent build:
+HTTPException(422, detail={
+    "detail": "preflight_rejected_missing_required",
+    "missing_required": [...]
+})
+
+# Soft-degraded → continue; degraded_context attached
+# to FinalDraftSection in stage 7.</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 0b — build context + agent -->
+  <div class="stage">
+    <div class="row1">
+      <span class="name">0b · Build <code>SectionPlanContext</code> + construct <code>create_agent</code></span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="file">app/api/draft.py</span>
+    </div>
+    <div class="desc">Initial state assembled from the preflight-validated request. Step-1 metadata (naics, set_aside, contract_type, agency_supplement) ride into the agent's <code>RunnableConfig</code> for tool consumption.</div>
     <div class="schema-pop"><span class="title">→ produces SectionPlanContext</span>class SectionPlanContext(BaseModel):
-    # Matches M2 _FAR_SECTION_ENUM exactly — Section I is
-    # retrieved-only and bypasses this endpoint entirely
-    # (served by POST /retrieve, not /draft-solicitation/section).
     section_id: Literal["A","B","C","D","E","F","G","H",
                         "J","K","L","M"]
     solicitation_id: str = Field(min_length=1, max_length=128)
     tenant_id: str
     naics: str | None = None
     set_aside: str | None = None
+    contract_type: str | None = None        # NEW per ADR-0015 D3
+    agency_supplement: str | None = None    # NEW per ADR-0015 D3
     user_constraints: str | None = Field(default=None, max_length=1000)
     request_id: str
     run_id: str   # = f"{solicitation_id}:{section_id}:{request_id}"</div>
@@ -958,7 +1009,10 @@ class SectionDraftSkeleton(BaseModel):
     rerank_top_score: float | None
     request_id: str
     run_id: str
-    pending_tool_call: PendingToolCall | None = None</div>
+    pending_tool_call: PendingToolCall | None = None
+    degraded_context: list[str] = []
+    # ^ NEW per ADR-0015 D5: soft-required Step 1 fields
+    # missing from request; wizard renders warn banner.</div>
   </div>
 
 </div>
@@ -1243,8 +1297,9 @@ class CLINCoverageReport(BaseModel):
   Diagram is informational. Sources of truth:
   <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a> (single-agent baseline) ·
   <a href="../adrs/0013-multi-agent-coordinator-and-critic.md">ADR-0013</a> (multi-agent shape, mechanics) ·
-  <a href="../adrs/0014-per-far-part-batch-fan-out.md">ADR-0014</a> (per-AI-Part fan-out, granularity decision, L↔M critic reframe).
-  Implementation spec: <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> — §18.12 supersedes §18.1–§18.10 on fan-out shape.
+  <a href="../adrs/0014-per-far-part-batch-fan-out.md">ADR-0014</a> (per-AI-Part fan-out, granularity decision, L↔M critic reframe) ·
+  <a href="../adrs/0015-preflight-input-validation.md">ADR-0015</a> (preflight three-tier required-field gate + reactive-forms wizard migration).
+  Implementation spec: <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> — §18.12 supersedes §18.1–§18.10 on fan-out shape; §19 adds preflight.
   v1.0 patterns sourced from <a href="https://docs.langchain.com/oss/python/langchain/multi-agent">docs.langchain.com/oss/python/langchain/multi-agent</a> (Subagents, Router, Handoffs, Skills, Custom Workflow).
   FAR Part references: <a href="https://www.acquisition.gov/far/15.204-2">15.204-2 Part I</a> · <a href="https://www.acquisition.gov/far/15.204-3">15.204-3 Part II</a> · <a href="https://www.acquisition.gov/far/15.204-4">15.204-4 Part III</a> · <a href="https://www.acquisition.gov/far/15.204-5">15.204-5 Part IV</a>.
   Generated 2026-06-10 · acquire-gov · Phase 1 M1.
