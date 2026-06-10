@@ -95,8 +95,12 @@ services:
       # ⚠ DELIBERATE: evaluation-service calls solicitation-service directly,
       #   not through the gateway — tighter coupling than necessary, and the
       #   call has no circuit breaker (Item 3).
+      # ADR-0005 D3: atlas-local requires ?directConnection=true.
+      MONGO_URL: mongodb://app:app_dev_password@mongodb:27017/?directConnection=true
+      MONGO_DB: acquire_gov
     depends_on:
       - solicitation-service
+      - mongodb
     # ⚠ no healthcheck
 
   ai-orchestrator:

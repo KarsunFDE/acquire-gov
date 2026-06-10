@@ -13,25 +13,26 @@ uvicorn[standard]==0.32.0
 # Agentic flows: langchain.agents.create_agent (wired in M3).
 langchain>=1.0,<2
 langchain-core>=1.0,<2
-langchain-aws>=0.3,<1
+langchain-aws>=1.0,<2
 langchain-mongodb>=0.5,<1
 langchain-text-splitters>=0.3,<1
 
 # Bedrock / AWS
-# 1.39.11 is the floor for Bedrock API-key (bearer-token) auth via the
-# AWS_BEARER_TOKEN_BEDROCK env var: support landed in 1.39.0, and 1.39.11
-# fixed bearer auth being misapplied to non-bedrock services. boto3.client
-# ("bedrock-runtime") auto-uses the env var — no code change in bedrock_client.
-boto3==1.39.11
+# Bearer-token floor: 1.39.0 (support landed) / 1.39.11 (fixed cross-service
+# auth bleed). LangChain v1.0 cutover requires langchain-aws>=1.0 which itself
+# requires boto3>=1.40.19 — both floors satisfied by the lower bound below.
+# boto3.client("bedrock-runtime") auto-uses AWS_BEARER_TOKEN_BEDROCK — no
+# code change in bedrock_client.
+boto3>=1.40.19,<2
 
 # Datastores
-pymongo==4.10.1
+pymongo>=4.10.1,<5
 
-# Schemas
-pydantic==2.9.2
+# Schemas — langchain-aws 1.x floor is 2.10.6
+pydantic>=2.10.6,<3
 
 # Resiliency (ADR-0004 B1 — tenacity full-jitter retry envelope)
-tenacity==9.0.0
+tenacity>=9.0.0,<10
 
 # Per-tenant rate limiting (ADR-0011 D4 — in-process; Redis-backed Phase 1.5)
 slowapi>=0.1.9,<1
