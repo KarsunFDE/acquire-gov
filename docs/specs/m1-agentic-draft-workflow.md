@@ -1689,8 +1689,351 @@ curl -X POST http://localhost:8000/draft-solicitation/critic \
 - LLM-classified routing — out of scope; deterministic per D2.
 - Iterative reflection loops between drafter and critic — Phase 2 / M3.
 - Per-tenant critic model — single global config knob in Phase 1.
-- Batch resume endpoint (`/batch/resume`) — composing per-section resumes is simpler; not added.
 
 ---
 
-End of spec. Implementer entry point: PR A1 (§15) for the ADR-0012 baseline, then PR G1 (§18.9) for the ADR-0013 multi-agent extension.
+## 18.12 ADR-0014 supersession — per-FAR-Part fan-out (replaces §18.1–§18.10 fan-out granularity)
+
+ADR-0014 (2026-06-10) supersedes ADR-0013 D1's per-section fan-out granularity with per-AI-FAR-Part fan-out. Everything in §18.1–§18.10 that describes the coordinator shape gets the deltas below. Implementer flow stays §18 then §18.12 last; §18.12 wins on every conflict.
+
+### 18.12.1 What stays from §18.1–§18.10
+
+- Coordinator is a custom `StateGraph` with `MongoDBSaver` checkpointer (§18.3 mechanics intact).
+- HITL middleware shape, `gate_thresholds()` helper, `compute_gate_decision` tool input-arg predicate (§9.1).
+- Critic-agent harness, single-pass non-iterative, warn-only Phase 1, `blocks_submit=False` always (§18.4 mechanics).
+- Audit row shape with `tool_calls` sub-record (§11).
+- Rate-limit multi-cost wiring (§18.6.1) — applied per Part now, not per section. `MAX_BATCH_FAN_OUT` default drops to 2 (was 4) — the count of AI-draftable Parts.
+- `/batch/resume` endpoint and resume-via-Command(resume={...}) protocol (§18.2 BatchResumeRequest).
+- Eval-gate metrics record-only in Phase 1 (§18.8 informational threshold note).
+- 11-PR rollout shape (§18.9), with PR-naming + slot adjustments below.
+
+### 18.12.2 What changes from §18.1–§18.10
+
+**Module layout (supersedes §18.1):**
+
+```
+app/
+├── api/
+│   ├── batch.py                            # per §18.2 — handler now invokes per-Part coordinator
+│   ├── batch_resume.py                     # per §18.2 — unchanged in mechanism, Part-level interrupts now
+│   └── critic.py                           # per §18.2 — Step 12 standalone critic
+├── agents/
+│   ├── coordinator/
+│   │   ├── __init__.py
+│   │   ├── graph.py                        # per-Part fan-out (replaces per-section)
+│   │   ├── nodes.py                        # _plan, _fan_out_per_part, _resolve_part_ii, _pass_through_part_iii, _aggregate, _route_after_aggregate, _critic
+│   │   ├── part_ii.py                      # NEW — resolve_part_ii_clauses (programmatic, no agent)
+│   │   └── part_iii.py                     # NEW — wizard-passthrough metadata adapter (no LLM)
+│   ├── part_drafter/                       # NEW — Part agents (one factory, parameterized on Part)
+│   │   ├── __init__.py
+│   │   ├── builder.py                      # build_part_drafter_agent(part: Literal["I","IV"])
+│   │   ├── prompts.py                      # PART_DRAFTING_SYSTEM_PROMPTS = {"I": "...", "IV": "..."}
+│   │   └── schemas.py                      # PartDraftBundle, PartIIClauseList, PartIIIAttachmentMeta, PartResult
+│   ├── critic/
+│   │   └── tools/
+│   │       └── lm_consistency.py           # RENAMED from lm_alignment.py — verify_l_m_consistency
+│   └── (SectionDrafterAgent under app/agents/builder.py UNCHANGED per ADR-0014 D8)
+```
+
+`SectionDrafterAgent` from ADR-0012 spec §7 stays exactly as written and is invoked from `app/api/draft.py` (single-section endpoint). `PartDrafterAgent` is a SEPARATE factory at `app/agents/part_drafter/builder.py`; the two share the same tool set but produce different structured outputs.
+
+**Endpoint contracts (supersedes §18.2 `/batch`):**
+
+```python
+# REPLACES the §18.2 BatchDraftRequest:
+class PartIIIAttachmentMeta(BaseModel):
+    title: str
+    date: date | None = None
+    page_count: int | None = Field(default=None, ge=0)
+    filename: str | None = None
+
+
+class BatchDraftRequest(BaseModel):
+    solicitation_id: str = Field(min_length=1, max_length=128)
+    naics: str | None = None
+    set_aside: str | None = None
+    contract_type: str | None = None                # NEW per ADR-0014 D3 (Part II clause resolution)
+    agency_supplement: str | None = None            # NEW per ADR-0014 D3
+    user_constraints_by_section: dict[Literal["C","H","L","M"], str] = Field(default_factory=dict)
+    provenances: dict[Literal["A","B","C","D","E","F","G","H","J","K","L","M"], str | None] = Field(default_factory=dict)
+    part_iii_attachments: list[PartIIIAttachmentMeta] = Field(default_factory=list)   # NEW per ADR-0014 D4
+
+# REPLACES the §18.2 SolicitationDraftBundle:
+class PartResult(BaseModel):
+    part: Literal["I", "II", "III", "IV"]
+    kind: Literal["llm_drafted", "programmatic_resolved", "wizard_provided"]
+    sections: dict[str, FinalDraftSection | PartIIClauseList | PartIIIAttachmentMeta | None]
+
+
+class SolicitationDraftBundle(BaseModel):
+    solicitation_id: str
+    parts: dict[Literal["I", "II", "III", "IV"], PartResult]
+    overall_outcome: Literal["batch_completed", "batch_interrupted"]
+    consistency_report: ConsistencyReport | None
+    pending_interrupts: list[PendingToolCall] = []
+    request_id: str
+    batch_run_id: str
+
+
+class PartIIClauseList(BaseModel):
+    clauses_by_reference: list[FARClauseReference]
+    source: Literal["far_snapshot_index"]
+    snapshot_date: date
+    resolved_for: dict[str, str | None]
+
+
+class FARClauseReference(BaseModel):
+    citation: str                # e.g. "52.212-4"
+    title: str
+    prescription: str            # e.g. "FAR 12.301(b)(3)"
+```
+
+`PartResult.sections` carries section-level results. AI-drafted sections (C, H inside Part I; L, M inside Part IV) hold `FinalDraftSection` instances — the ADR-0012 D3 shape is preserved verbatim so wizard `section-card` rendering does not change. Section I holds the `PartIIClauseList`. Section J holds the per-attachment metadata list.
+
+**Coordinator implementation (supersedes §18.3 fan-out + aggregation):**
+
+```python
+# REPLACES §18.3's AI_DRAFTABLE constant + _plan + _fan_out:
+AI_PART_TO_SECTIONS: dict[str, frozenset[str]] = {
+    "I": frozenset({"C", "H"}),
+    "IV": frozenset({"L", "M"}),
+}
+
+
+def _plan(state: CoordinatorState) -> dict:
+    parts_to_draft: list[tuple[str, list[str]]] = []
+    for part, sections in AI_PART_TO_SECTIONS.items():
+        still_null = sorted(s for s in sections if state["provenances"].get(s) is None)
+        if still_null:
+            parts_to_draft.append((part, still_null))
+    if len(parts_to_draft) > config.MAX_BATCH_FAN_OUT:
+        raise ValueError(...)
+    return {"parts_to_draft": parts_to_draft}
+
+
+def _fan_out_per_part(state: CoordinatorState) -> list[Send]:
+    return [
+        Send(f"draft_part_{part}", {
+            "part": part,
+            "sections": sections,
+            "solicitation_id": state["solicitation_id"],
+            "tenant_id": state["tenant_id"],
+            "request_id": state["request_id"],
+            "batch_run_id": state["batch_run_id"],
+            "naics": state.get("naics"),
+            "set_aside": state.get("set_aside"),
+            "user_constraints_by_section": {s: state["user_constraints_by_section"].get(s) for s in sections},
+        })
+        for part, sections in state["parts_to_draft"]
+    ]
+
+
+def _draft_part_i(payload: dict) -> dict:
+    """Same shape as §18.3 _draft_one_section but invokes
+    build_part_drafter_agent('I'). Returns one PartDraftBundle that the
+    aggregate node expands into FinalDraftSection per section before
+    stuffing into PartResult."""
+    agent = build_part_drafter_agent("I")
+    ...
+
+def _draft_part_iv(payload: dict) -> dict: ...  # symmetric for IV
+
+# Two new programmatic graph nodes:
+def _resolve_part_ii(state: CoordinatorState) -> dict:
+    clause_list = resolve_part_ii_clauses(
+        set_aside=state.get("set_aside"),
+        contract_type=state.get("contract_type"),
+        agency_supplement=state.get("agency_supplement"),
+    )
+    return {"part_ii_result": PartResult(part="II", kind="programmatic_resolved",
+                                          sections={"I": clause_list})}
+
+
+def _pass_through_part_iii(state: CoordinatorState) -> dict:
+    return {"part_iii_result": PartResult(part="III", kind="wizard_provided",
+                                           sections={"J": state["part_iii_attachments"]})}
+```
+
+Graph wiring adds two new nodes (`_resolve_part_ii`, `_pass_through_part_iii`) that run in parallel with the Send fan-out — they're independent programmatic nodes (no LLM, no checkpointer needed for them). All four Parts converge at `_aggregate` which assembles the four `PartResult`s into the `SolicitationDraftBundle.parts` map.
+
+**`PartDrafterAgent` construction (NEW, supersedes nothing — adds a sibling to `SectionDrafterAgent`):**
+
+```python
+# app/agents/part_drafter/builder.py
+from langchain.agents import create_agent
+from langchain_aws import ChatBedrockConverse
+
+from app import config
+from app.agents.schemas import PartDraftBundle   # NEW
+from app.agents.part_drafter.prompts import PART_DRAFTING_SYSTEM_PROMPTS
+from app.agents.middleware.hitl_gate import build_hitl_middleware
+from app.agents.checkpointer import build_mongodb_saver
+from app.agents.tools import (
+    retrieve_far_clauses,
+    retrieve_related_solicitations,
+    extract_section_requirements,
+    compute_gate_decision,
+    draft_section_text,                # SAME tool; now supports multi-section input arg
+    validate_citations,
+)
+
+
+def build_part_drafter_agent(part: Literal["I", "IV"]):
+    return create_agent(
+        model=ChatBedrockConverse(model=config.BEDROCK_GEN_MODEL),
+        tools=[
+            retrieve_far_clauses,
+            retrieve_related_solicitations,
+            extract_section_requirements,
+            compute_gate_decision,
+            draft_section_text,
+            validate_citations,
+        ],
+        system_prompt=PART_DRAFTING_SYSTEM_PROMPTS[part],
+        response_format=PartDraftBundle,
+        middleware=[build_hitl_middleware()],
+        checkpointer=build_mongodb_saver(),
+        name=f"part_{part.lower()}_drafter",
+    )
+```
+
+`PartDraftBundle` Pydantic:
+
+```python
+class PartDraftBundle(BaseModel):
+    part: Literal["I", "IV"]
+    sections: dict[str, FinalDraftSection]    # keyed by section_id ("C","H" for Part I; "L","M" for Part IV)
+    overall_outcome: Literal["draft_returned", "withheld", "interrupted", "citation_verification_failed"]
+    pending_tool_call: PendingToolCall | None = None
+    rerank_top_score: float | None
+    request_id: str
+    run_id: str                               # = f"{sol_id}:part_{part}:{request_id}"
+```
+
+Each section inside the bundle still surfaces its own `FinalDraftSection` (citations, gate_decision, requires_human_review) — wizard rendering downstream is identical to the per-section path.
+
+**`draft_section_text` tool variant supports multi-section invocation:**
+
+```python
+@tool
+def draft_section_text(
+    section_ids: list[str],                  # ADR-0012 took single section_id; now accepts a list
+    evidence: RetrievedEvidence,
+    requirements: ExtractedRequirements,
+    related: RelatedSolicitations,
+    *,
+    config: RunnableConfig,
+) -> dict[str, SectionDraftSkeleton]:        # returns one skeleton per section
+    """Draft one or more FAR section texts in a single Sonnet call.
+    When invoked with one section_id, returns {section_id: SectionDraftSkeleton}
+    (matching ADR-0012 behavior). When invoked with multiple, the model is
+    instructed to draft them coherently and emit per-section skeletons in a dict."""
+    ...
+```
+
+Backward-compat: ADR-0012's `SectionDrafterAgent` invokes with a singleton list (or the prior single-section signature, via an overload — spec-implementer choice; PR I1 picks). The Part agents invoke with `[C, H]` or `[L, M]`.
+
+**Critic tool rename + role change (supersedes §18.5 `check_l_m_alignment`):**
+
+```python
+# app/agents/critic/tools/lm_consistency.py — formerly lm_alignment.py
+@tool
+def verify_l_m_consistency(section_l: str | None, section_m: str | None) -> LMAlignmentReport:
+    """L↔M coherence check. Per ADR-0014 D5, FAR 15.204-5 does NOT
+    mandate L↔M alignment in reg text; this is a best-practice +
+    bid-protest pattern check. When PartIVDrafterAgent drafts L+M
+    together (batch path), the alignment is built-in and this tool
+    verifies it. When invoked from /critic standalone with hand-typed
+    L+M (Step 12 path), it performs the full LLM semantic check."""
+    ...
+```
+
+`LMAlignmentReport.LMMismatch.type` enum semantics shift per ADR-0014 D5: `l_without_m` and `m_without_l` are now `severity="fail"` (rare-by-construction — indicates PartIVDrafter failed), `weak_mapping` remains `severity="warn"`. Phase 1 overall clamp still maps to warn at most (D5).
+
+**Audit row addition — supersedes §18.7:**
+
+```python
+# part_drafter_run — one per PartDrafterAgent.invoke inside a batch
+{
+    ...standard fields...,
+    "action": "part_drafter_run",
+    "run_id": "<sol_id>:part_<I|IV>:<request_id>",
+    "actor": { ... },
+    "part_drafter": {
+        "part": "I" | "IV",
+        "sections_requested": ["C", "H"],
+        "sections_drafted": ["C", "H"],          # subset that returned outcome="draft_returned"
+        "sections_interrupted": [],
+        "sections_withheld": [],
+    },
+    "outcome": "draft_returned" | "withheld" | "interrupted" | "citation_verification_failed",
+    "batch_run_id": "<parent batch_run_id>",
+}
+```
+
+ADR-0013's per-section `retrieval_and_generate` row stays for the single-section endpoint. Inside a batch, `part_drafter_run` rows replace the per-section ones (one row per Part agent, not per section drafted inside it).
+
+**Rollout (supersedes §18.9):**
+
+PR mapping changes — same letter codes, scope shifts to per-Part:
+
+| PR | Branch | What lands |
+|---|---|---|
+| G1 | `cj/m1-multi-schemas` | adds `PartDraftBundle`, `PartIIClauseList`, `PartIIIAttachmentMeta`, `PartResult`, `FARClauseReference` |
+| G2 | `cj/m1-multi-config` | adds `BEDROCK_CRITIC_MODEL`, `SET_ASIDE_STRICT_EXTRA`, `MAX_BATCH_FAN_OUT=2` (was 4) |
+| H1 | `cj/m1-multi-critic-tools` | three critic tools — `verify_l_m_consistency` (RENAMED), `check_set_aside_consistency`, `check_clin_coverage` |
+| H2 | `cj/m1-multi-critic-builder` | `app/agents/critic/builder.py` + Step-12-path system prompt |
+| H3 | `cj/m1-multi-critic-endpoint` | `/critic` standalone endpoint |
+| I0 | `cj/m1-multi-tools-list` | `draft_section_text` accepts `list[section_id]` (additive — single-section path uses singleton list) |
+| I1 | `cj/m1-multi-part-drafter` | `app/agents/part_drafter/` — builder + Part-aware prompts + PartDraftBundle structured output |
+| I2 | `cj/m1-multi-coord-graph` | coordinator graph with per-Part `Send` + `_resolve_part_ii` + `_pass_through_part_iii` programmatic nodes |
+| I3 | `cj/m1-multi-coord-endpoints` | `/batch` + `/batch/resume` route mounts; slowapi multi-cost wiring (N=2 instead of N=4) |
+| I4 | `cj/m1-multi-part-ii` | `resolve_part_ii_clauses` + `docs/reference/far/clause_applicability.json` asset |
+| J1 | `cj/m1-multi-audit` | `part_drafter_run` audit row + resume rows + critic rows |
+| J2 | `cj/m1-multi-eval-gate` | four new eval-gate metrics, record-only |
+| K1 | `cj/m1-multi-frontend` | wizard "Draft AI Parts" button + Step 12 critic invocation + per-Part HITL surface |
+
+Total: 13 extension PRs (up from 11 in §18.9 — adds I0 for the tool variant and I4 for Part II clause resolution; otherwise same coverage). Critical path: G1 → I0 → I1 → I2 → I3 (coordinator + endpoints) → I4 (Part II resolution can land in parallel with I2/I3) → H1 → H2 → H3 (critic chain) → J1/J2 → K1.
+
+### 18.12.3 Verification one-liners (supersedes §18.10 batch curl)
+
+```bash
+# Smoke — batch with per-Part fan-out
+curl -X POST http://localhost:8000/draft-solicitation/batch \
+  -H "X-Tenant-ID: agency-test" -H "X-Request-ID: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "solicitation_id": "sol-001",
+    "naics": "541512",
+    "set_aside": "SDVOSB",
+    "contract_type": "FFP",
+    "agency_supplement": "GSAM",
+    "user_constraints_by_section": {
+      "C": "quarterly deliverable cadence",
+      "L": "max 25 page proposal"
+    },
+    "provenances": {"C": null, "H": null, "L": null, "M": null},
+    "part_iii_attachments": [
+      {"title": "Attachment 1 — Past performance questionnaire", "date": "2026-06-10", "page_count": 4, "filename": "att1.pdf"}
+    ]
+  }'
+# Expected: 200 with overall_outcome ∈ {batch_completed, batch_interrupted}
+# parts.I.kind = "llm_drafted", parts.II.kind = "programmatic_resolved",
+# parts.III.kind = "wizard_provided", parts.IV.kind = "llm_drafted"
+
+# Resume now operates on PART-level interrupts (typically one decision per pending Part):
+curl -X POST http://localhost:8000/draft-solicitation/batch/resume \
+  -H "X-Tenant-ID: agency-test" -H "X-Request-ID: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "batch_run_id": "sol-001:batch:<original-uuid>",
+    "decisions": [
+      {"section_id": "L", "decision": "approve"}
+    ]
+  }'
+# (decision is still keyed by section_id for client compat; backend resolves to the owning Part's interrupt)
+```
+
+---
+
+End of spec. Implementer entry point: PR A1 (§15) for the ADR-0012 baseline, then PR G1 (§18.12 mapping) for the ADR-0014 per-AI-Part multi-agent extension.

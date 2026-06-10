@@ -381,11 +381,13 @@
 </head>
 <body>
 
-<h1>Agentic draft-solicitation workflow — multi-agent topology</h1>
+<h1>Agentic draft-solicitation workflow — multi-agent topology (per-AI-FAR-Part)</h1>
 <div class="sub">
   acquire-gov · M1 (LLM-assisted drafting) extending toward M3 · LangChain v1.0 (OSS) ·
-  see <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a> for decisions ·
-  see <a href="./m1-agentic-draft-workflow.md">spec</a> for endpoint contracts + tests
+  decisions: <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a> (single-agent baseline) →
+  <a href="../adrs/0013-multi-agent-coordinator-and-critic.md">ADR-0013</a> (multi-agent shape) →
+  <a href="../adrs/0014-per-far-part-batch-fan-out.md">ADR-0014</a> (per-AI-Part fan-out, this revision) ·
+  spec: <a href="./m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> (§18.12 for the current shape)
 </div>
 
 <nav class="toc">
@@ -412,10 +414,11 @@
 <!-- ============================================================ -->
 <!-- ================== 1. TOPOLOGY ============================ -->
 <!-- ============================================================ -->
-<h2 id="topology">1. Multi-agent topology</h2>
+<h2 id="topology">1. Multi-agent topology (ADR-0014)</h2>
 <p style="font-size: 13px; color: var(--text-dim);">
-  Two entry paths: single-section (wizard's per-section "AI-draft" button, ADR-0012 baseline) and batch (new "Draft all AI sections" button, this update).
-  Batch path uses LangChain v1.0 <em>Router</em> pattern with <code>langgraph.types.Send</code> for parallel fan-out to <code>SectionDrafterAgent</code> subagents, then hands off to <code>ConsistencyCriticAgent</code> for cross-section validation before wizard Step 13 submit.
+  Two entry paths: single-section (wizard's per-section "AI-draft" button, ADR-0012 baseline, unchanged) and batch (wizard's "Draft AI Parts" button, ADR-0014 shape).
+  Batch path uses LangChain v1.0 <em>Router</em> pattern with <code>langgraph.types.Send</code> for parallel fan-out to per-AI-Part subagents (<code>PartIDrafterAgent</code>, <code>PartIVDrafterAgent</code>) plus two programmatic nodes for Parts II and III (no LLM call), then hands off to <code>ConsistencyCriticAgent</code> before wizard Step 13.
+  Parts II + III bypass the agent topology entirely: Part II is rule-based clause selection, Part III is wizard-provided attachment metadata.
 </p>
 
 <div class="topology">
@@ -452,59 +455,62 @@
         <span class="chip chip-free">free</span>
       </div>
       <div class="agent-meta">
-        custom StateGraph (no <code>create_router</code> helper exists in v1.0)<br>
-        node: <code>plan_drafting_order</code> → <code>Send</code> fan-out → <code>aggregate</code> → critic handoff
+        custom StateGraph (checkpointed via MongoDBSaver · no <code>create_router</code> helper in v1.0)<br>
+        node: <code>plan</code> → per-Part <code>Send</code> fan-out + Part II/III programmatic nodes → <code>aggregate</code> → critic
       </div>
       <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 8px;">
-        <strong>Routing rule:</strong> spawn one subagent per section with provenance ∈ {null}; skip sections already <code>human</code> / <code>ai</code> / <code>ai-edited</code> (CO has taken ownership).
-        Sub-agents run in parallel via <code>Send</code>; coordinator does not LLM-classify (deterministic mapping section_id→drafter).
+        <strong>Routing rule (ADR-0014 D1/D2):</strong> spawn one subagent per AI-draftable Part with at least one section provenance ∈ {null}. AI-draftable Parts = {I, IV}; Parts II + III bypass the agent entirely (programmatic + wizard-passthrough).
+        Coordinator does not LLM-classify (deterministic Part→sections mapping).
       </div>
     </div>
   </div>
 
-  <div class="connector fan"><span class="label">Send(...) ×N — parallel fan-out</span></div>
+  <div class="connector fan"><span class="label">Send(...) per AI-Part · 2 programmatic nodes — parallel</span></div>
 
-  <!-- Tier: drafter subagents (parallel) -->
+  <!-- Tier: per-Part subagents + programmatic Part II/III (parallel) -->
   <div class="tier">
-    <div class="tier-label">Drafters · parallel</div>
+    <div class="tier-label">Parts · parallel</div>
     <div class="fan-out">
       <div class="agent-card drafter">
-        <div class="agent-name">SectionDrafterAgent("C")</div>
+        <div class="agent-name">PartIDrafterAgent</div>
         <div class="agent-chips">
           <span class="chip chip-drafter">drafter</span>
           <span class="chip chip-pattern">Tool-using</span>
           <span class="chip chip-hitl">HITL</span>
+          <span class="chip chip-llm">LLM</span>
         </div>
-        <div class="agent-meta">create_agent · 6 tools · Sonnet draft</div>
+        <div class="agent-meta">create_agent · drafts C + H together · 1 Sonnet call</div>
+      </div>
+      <div class="agent-card" style="border-color: var(--prog);">
+        <div class="agent-name">resolve_part_ii_clauses</div>
+        <div class="agent-chips">
+          <span class="chip chip-prog">programmatic</span>
+          <span class="chip chip-free">free</span>
+        </div>
+        <div class="agent-meta">no agent · lookup keyed on set_aside + contract_type + agency_supplement → FARClauseReference[]</div>
+      </div>
+      <div class="agent-card" style="border-color: var(--prog);">
+        <div class="agent-name">pass_through_part_iii</div>
+        <div class="agent-chips">
+          <span class="chip chip-prog">programmatic</span>
+          <span class="chip chip-free">free</span>
+        </div>
+        <div class="agent-meta">no agent · wizard-collected attachment metadata echoed for audit</div>
       </div>
       <div class="agent-card drafter">
-        <div class="agent-name">SectionDrafterAgent("H")</div>
+        <div class="agent-name">PartIVDrafterAgent</div>
         <div class="agent-chips">
           <span class="chip chip-drafter">drafter</span>
+          <span class="chip chip-pattern">Tool-using</span>
           <span class="chip chip-hitl">HITL</span>
+          <span class="chip chip-llm">LLM</span>
         </div>
-        <div class="agent-meta">create_agent · 6 tools · Sonnet draft</div>
-      </div>
-      <div class="agent-card drafter">
-        <div class="agent-name">SectionDrafterAgent("L")</div>
-        <div class="agent-chips">
-          <span class="chip chip-drafter">drafter</span>
-          <span class="chip chip-hitl">HITL</span>
-        </div>
-        <div class="agent-meta">create_agent · 6 tools · Sonnet draft · lean-corpus flag</div>
-      </div>
-      <div class="agent-card drafter">
-        <div class="agent-name">SectionDrafterAgent("M")</div>
-        <div class="agent-chips">
-          <span class="chip chip-drafter">drafter</span>
-          <span class="chip chip-hitl">HITL</span>
-        </div>
-        <div class="agent-meta">create_agent · 6 tools · Sonnet draft · lean-corpus flag</div>
+        <div class="agent-meta">create_agent · drafts L + M together · inherent alignment · 1 Sonnet call</div>
       </div>
     </div>
   </div>
 
-  <div class="connector"><span class="label">aggregate FinalDraftSection × N</span></div>
+  <div class="connector"><span class="label">aggregate PartResult × 4 → SolicitationDraftBundle</span></div>
 
   <!-- Tier: aggregator -->
   <div class="tier">
@@ -595,10 +601,16 @@
     </div>
   </div>
   <div class="q">
-    <div class="label">D · One generation phase / one-at-a-time / multi / by FAR Parts?</div>
+    <div class="label">D · One generation phase / one-at-a-time / multi / by FAR Parts?  (ADR-0014 revises)</div>
     <div class="ans">
-      Per-section default + optional batch via Coordinator. <strong>NOT by Parts</strong>. The FAR UCF Parts (I = A–H + I, II = I clauses, III = J, IV = K + L + M) split drafted/retrieved/human sections inconsistently — Part I has 2 drafted (C, H) + 5 human (A, B, D, E, F, G) + 1 retrieved (I); Part IV has 2 drafted (L, M) + 1 human (K). Per-Part agents would either skip mostly-empty Parts or wrap human-typed sections in agent shells with nothing to do. Per-AI-section is the clean fan-out unit.
-      See §6 (Granularity) for the option table.
+      <strong>Per-AI-Part fan-out for the batch path; per-section for the single-section endpoint.</strong> ADR-0014 supersedes ADR-0013's per-section batch fan-out after the FAR 15.204-1..5 verification:
+      <ul style="margin: 6px 0;">
+        <li><strong>Part I (A–H)</strong> — AI-drafts <code>{C, H}</code> together in one <code>PartIDrafterAgent</code> run. A/B/D/E/F/G stay human-typed in the wizard.</li>
+        <li><strong>Part II (Section I — clauses)</strong> — <strong>no LLM call.</strong> Deterministic lookup on <code>(set_aside, contract_type, agency_supplement) → required FAR clauses</code>. Programmatic node.</li>
+        <li><strong>Part III (Section J — attachments)</strong> — <strong>no LLM call.</strong> Per FAR 15.204-4, Section J is an INDEX of attachments (title/date/page count). Wizard collects metadata client-side; coordinator passes through for audit.</li>
+        <li><strong>Part IV (K, L, M)</strong> — AI-drafts <code>{L, M}</code> together in one <code>PartIVDrafterAgent</code> run. Inherent L↔M alignment is built into the drafting step (the critic now verifies, doesn't enforce). K stays template + human-typed.</li>
+      </ul>
+      Fan-out drops from <strong>N=4 sections</strong> (ADR-0013) → <strong>N=2 AI-Parts</strong> (ADR-0014). Cost saving is marginal (~$0.01 input-token overhead); the real win is intra-Part coherence — C↔H share retrieved FAR context, L↔M get drafted together so misalignment is rare-by-construction. See §6 (Granularity) for the updated option table.
     </div>
   </div>
 </div>
@@ -985,19 +997,23 @@ class SectionDraftSkeleton(BaseModel):
   </div>
 
   <div class="card">
-    <h3>Batch path cost (4 drafters + critic)</h3>
+    <h3>Batch path cost (per-AI-Part — ADR-0014)</h3>
     <table class="costs">
       <thead><tr><th>Stage</th><th class="num">USD</th></tr></thead>
       <tbody>
         <tr><td>Coordinator (programmatic)</td><td class="num">0.0000</td></tr>
-        <tr><td>4× SectionDrafterAgent</td><td class="num">~0.2000</td></tr>
+        <tr><td>PartIDrafterAgent (drafts C+H · 1 Sonnet call)</td><td class="num">~0.0950</td></tr>
+        <tr><td>resolve_part_ii_clauses (programmatic)</td><td class="num">0.0000</td></tr>
+        <tr><td>pass_through_part_iii (programmatic)</td><td class="num">0.0000</td></tr>
+        <tr><td>PartIVDrafterAgent (drafts L+M · 1 Sonnet call)</td><td class="num">~0.0950</td></tr>
         <tr><td>aggregate</td><td class="num">0.0000</td></tr>
         <tr><td>ConsistencyCriticAgent (1 LLM check)</td><td class="num">~0.0150</td></tr>
-        <tr class="total"><td>per batch</td><td class="num">~$0.22</td></tr>
+        <tr class="total"><td>per batch</td><td class="num">~$0.21</td></tr>
       </tbody>
     </table>
     <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px;">
-      4 drafters run in parallel via <code>Send</code> — wall clock ≈ slowest drafter, not sum.
+      2 Part drafters run in parallel via <code>Send</code> + 2 programmatic nodes — wall clock ≈ slowest Part drafter (~7–10s).
+      Save ~$0.01 input-token overhead + Programmatic Parts II/III contribute zero LLM cost.
     </div>
   </div>
 
@@ -1027,13 +1043,13 @@ class SectionDraftSkeleton(BaseModel):
 
   <div class="stage" style="border-color: var(--critic);">
     <div class="row1">
-      <span class="name">C1 · <code>check_l_m_alignment</code></span>
+      <span class="name">C1 · <code>verify_l_m_consistency</code></span>
       <span class="chip chip-llm">LLM</span>
       <span class="chip chip-low">low cost</span>
       <span class="chip chip-model">config.BEDROCK_CRITIC_MODEL (Nova Lite or Sonnet)</span>
     </div>
     <div class="desc">
-      FAR 15.204-5: Section L (Instructions to Offerors) and Section M (Evaluation Factors) must align — every L instruction should map to an M factor and vice versa. Semantic check; not regex-able. ~1k input / ~300 output tokens.
+      L↔M coherence check. <strong>Note: FAR 15.204-5 does NOT mandate alignment in reg text</strong> (verbatim per 2026-06-10 fetch). This check enforces operational best practice + GAO bid-protest pattern, not a regulatory requirement. ADR-0014 D5 reframes the role: in the batch path, <code>PartIVDrafterAgent</code> drafts L+M together so alignment is built-in — this tool VERIFIES rather than discovers. In the <code>/critic</code> standalone path (Step 12 with hand-typed L+M), it performs the full LLM semantic check.
     </div>
     <div class="schema-pop"><span class="title">→ produces LMAlignmentReport</span>class LMMismatch(BaseModel):
     type: Literal["l_without_m","m_without_l","weak_mapping"]
@@ -1134,11 +1150,17 @@ class CLINCoverageReport(BaseModel):
       <td>Matches current UI · CO control per-section · simplest contract · interruptible HITL per section</td>
       <td>No cross-section consistency check inside drafting · no parallelism without external coordinator</td>
     </tr>
+    <tr>
+      <td>Per-section batch fan-out (ADR-0013, superseded)</td>
+      <td>Coordinator spawns 4 <code>SectionDrafterAgent</code> via <code>Send</code> (one each for C, H, L, M).</td>
+      <td>Simplest mental model · matches single-section endpoint shape · per-section HITL granularity</td>
+      <td>4× input-token overhead (each call re-runs retrieval setup + system prompt) · C↔H and L↔M drafted in isolation · L↔M alignment relies entirely on a downstream critic catch</td>
+    </tr>
     <tr class="recommend">
-      <td><strong>Per-section default + optional batch path (this update)</strong></td>
-      <td>Wizard keeps per-section button; adds "Draft all AI sections" button that invokes <code>DraftingCoordinatorAgent</code>. Coordinator fans out via <code>Send</code> to 4 drafters in parallel, aggregates, hands off to critic.</td>
-      <td>Preserves CO control · enables parallelism + cross-section critic for batch users · single-section unchanged (additive)</td>
-      <td>Two endpoints to maintain · coordinator graph adds complexity (~2 implementer-days)</td>
+      <td><strong>Per-AI-Part batch fan-out + optional per-section single (ADR-0014)</strong></td>
+      <td>Coordinator spawns <code>PartIDrafterAgent</code> (drafts {C,H}) + <code>PartIVDrafterAgent</code> (drafts {L,M}) via <code>Send</code>; Parts II + III bypass the agent entirely (programmatic + wizard-passthrough). Single-section endpoint unchanged from ADR-0012.</td>
+      <td>Intra-Part coherence (C↔H share context, L↔M drafted together) · drops fan-out 4→2 · LLM-warranted work only · matches FAR 15.204-1 mental model · single-section CO-targeted path preserved</td>
+      <td>Two drafter agent types to maintain (<code>SectionDrafterAgent</code>, <code>PartDrafterAgent</code>) · HITL interrupt entangles both sections of an interrupted Part (acceptable — they're entangled by design)</td>
     </tr>
     <tr>
       <td>One agent per whole solicitation</td>
@@ -1147,10 +1169,10 @@ class CLINCoverageReport(BaseModel):
       <td>Long-running (~30s wall clock) · CO can't preview one section at a time · interrupt-and-resume becomes per-solicitation, blunting the M1 UX · doesn't match current wizard</td>
     </tr>
     <tr>
-      <td>One agent per FAR UCF Part (I–IV)</td>
-      <td>Part I agent drafts A–H; Part II = I clauses (retrieved); Part III = J; Part IV = K + L + M.</td>
-      <td>Maps to government doc structure familiar to COs</td>
-      <td>Parts mix drafted/human/retrieved sections inconsistently (Part I has 2 drafted of 8 sections; Part IV has 2 drafted of 3) · per-Part agents would either be mostly-empty or skip most of "their" sections · no clear fan-out unit</td>
+      <td>One agent per FAR UCF Part (I–IV), all four as agents</td>
+      <td>Part I agent drafts A–H; Part II = I clauses agent; Part III = J agent; Part IV = K + L + M agent.</td>
+      <td>Maximally maps to FAR structure</td>
+      <td>Part II and Part III have no LLM-warranted work (per FAR fetches: Part II is rule-based clause selection; Part III is wizard-collected attachment metadata) — wrapping them in agents is goldplating</td>
     </tr>
     <tr>
       <td>One agent per claim / per FAR clause</td>
@@ -1182,6 +1204,7 @@ class CLINCoverageReport(BaseModel):
     <li><strong>Runs at wizard Step 12 (Review)</strong> even when sections were drafted one-at-a-time via the single-section path. Wizard POSTs <code>/draft-solicitation/critic</code> with the current sections bundle.</li>
     <li><strong>Phase 1 = warn-only</strong>. <code>overall_severity</code> rendered, never blocks Step 13 submit. Hard-fail surface = Phase 1.5.</li>
     <li><strong>No iterative reflection loop</strong> — single pass. If critic finds a warn, the CO edits + resubmits; not the agent.</li>
+    <li><strong>L↔M check role depends on path</strong> (ADR-0014 D5): batch path → <code>verify_l_m_consistency</code> verifies that the PartIVDrafter aligned L+M (which it drafted together); standalone <code>/critic</code> path → full LLM semantic check on hand-typed L+M. Same tool body, different invocation context.</li>
   </ul>
 
   <h4>Parallelism summary</h4>
@@ -1200,7 +1223,7 @@ class CLINCoverageReport(BaseModel):
     <tbody>
       <tr><td>1× single section draft</td><td class="num">$0.05</td><td>existing wizard path</td></tr>
       <tr><td>4× single sections one-at-a-time</td><td class="num">$0.20</td><td>4 sequential calls, 4 audit rows</td></tr>
-      <tr><td>1× batch (4 sections + critic)</td><td class="num">$0.22</td><td>parallel; 1 critic call adds $0.015 over the 4× one-at-a-time cost</td></tr>
+      <tr><td>1× batch (per-AI-Part — ADR-0014)</td><td class="num">$0.21</td><td>2 Part drafters parallel + critic; ~$0.01 input-token savings over 4× single</td></tr>
       <tr><td>1× critic-only at Step 12</td><td class="num">$0.015</td><td>warn-only pass on user-typed + AI-drafted sections</td></tr>
     </tbody>
   </table>
@@ -1217,10 +1240,13 @@ class CLINCoverageReport(BaseModel):
 </div>
 
 <footer>
-  Diagram is informational. Source of truth = <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a>.
-  Implementation spec = <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a>.
-  Multi-agent topology extension (Coordinator + Critic) requires ADR + spec update — not yet committed.
+  Diagram is informational. Sources of truth:
+  <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a> (single-agent baseline) ·
+  <a href="../adrs/0013-multi-agent-coordinator-and-critic.md">ADR-0013</a> (multi-agent shape, mechanics) ·
+  <a href="../adrs/0014-per-far-part-batch-fan-out.md">ADR-0014</a> (per-AI-Part fan-out, granularity decision, L↔M critic reframe).
+  Implementation spec: <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> — §18.12 supersedes §18.1–§18.10 on fan-out shape.
   v1.0 patterns sourced from <a href="https://docs.langchain.com/oss/python/langchain/multi-agent">docs.langchain.com/oss/python/langchain/multi-agent</a> (Subagents, Router, Handoffs, Skills, Custom Workflow).
+  FAR Part references: <a href="https://www.acquisition.gov/far/15.204-2">15.204-2 Part I</a> · <a href="https://www.acquisition.gov/far/15.204-3">15.204-3 Part II</a> · <a href="https://www.acquisition.gov/far/15.204-4">15.204-4 Part III</a> · <a href="https://www.acquisition.gov/far/15.204-5">15.204-5 Part IV</a>.
   Generated 2026-06-10 · acquire-gov · Phase 1 M1.
 </footer>
 
