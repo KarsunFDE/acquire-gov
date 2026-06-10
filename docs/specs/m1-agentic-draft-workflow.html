@@ -13,6 +13,7 @@
     --text: #d8dee9;
     --text-dim: #8a96a8;
     --accent: #88c0d0;
+    --accent-2: #81a1c1;
     --prog: #a3be8c;
     --llm: #ebcb8b;
     --hitl: #d08770;
@@ -20,6 +21,10 @@
     --free: #4c566a;
     --low: #5e81ac;
     --high: #b48ead;
+    --pattern: #b48ead;
+    --critic: #ebcb8b;
+    --coord: #88c0d0;
+    --drafter: #a3be8c;
     --shadow: 0 4px 12px rgba(0,0,0,0.4);
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -35,12 +40,25 @@
   }
   body { padding: 24px 32px 80px; max-width: 1400px; margin: 0 auto; }
   h1 { color: var(--accent); margin: 0 0 6px; font-size: 22px; }
-  h2 { color: var(--accent); margin: 32px 0 10px; font-size: 16px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h2 { color: var(--accent); margin: 36px 0 12px; font-size: 17px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
   h3 { color: var(--text); margin: 18px 0 8px; font-size: 14px; }
+  h4 { color: var(--accent-2); margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
   p, li { color: var(--text); }
   .sub { color: var(--text-dim); font-size: 12px; margin-bottom: 18px; }
   code, .mono { font-family: var(--mono); font-size: 12.5px; background: var(--panel-2); padding: 1px 5px; border-radius: 3px; color: var(--accent); }
   pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.4; overflow-x: auto; color: var(--text); margin: 6px 0 12px; }
+
+  /* Nav anchors */
+  nav.toc { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 24px; font-size: 12px; }
+  nav.toc a {
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  nav.toc a:hover { color: var(--accent); border-color: var(--accent); }
 
   /* Layout */
   .grid {
@@ -87,6 +105,10 @@
   .chip-low  { background: var(--low);  color: #fff; }
   .chip-high { background: var(--high); color: #1a2028; }
   .chip-model { background: var(--panel-2); color: var(--accent); font-family: var(--mono); font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .chip-pattern { background: var(--pattern); color: #1a2028; font-style: italic; }
+  .chip-coord { background: var(--coord); }
+  .chip-drafter { background: var(--drafter); }
+  .chip-critic { background: var(--critic); }
 
   /* Connector arrows */
   .arrow {
@@ -166,6 +188,145 @@
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
   .legend .item { display: flex; align-items: center; gap: 6px; }
 
+  /* Topology — multi-agent diagram */
+  .topology {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    margin: 16px 0;
+    position: relative;
+  }
+  .topology .tier {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 12px 0;
+    position: relative;
+  }
+  .topology .tier-label {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    width: 90px;
+  }
+  .topology .agent-card {
+    background: var(--panel-2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    min-width: 180px;
+    max-width: 280px;
+    position: relative;
+    cursor: default;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .topology .agent-card:hover { transform: translateY(-2px); }
+  .topology .agent-card.coord { border-color: var(--coord); }
+  .topology .agent-card.drafter { border-color: var(--drafter); }
+  .topology .agent-card.critic { border-color: var(--critic); }
+  .topology .agent-card .agent-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .topology .agent-card .agent-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    margin-top: 6px;
+  }
+  .topology .agent-card .agent-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  /* Parallel fan-out container */
+  .fan-out {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 1100px;
+  }
+  .fan-out .agent-card { min-width: 0; max-width: none; }
+
+  /* SVG-ish connector lines via pseudo-elements */
+  .topology .connector {
+    height: 26px;
+    position: relative;
+    width: 100%;
+  }
+  .topology .connector::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: var(--text-dim);
+    transform: translateX(-50%);
+  }
+  .topology .connector.fan::before {
+    width: 60%;
+    left: 20%;
+    transform: none;
+    top: 50%;
+    height: 2px;
+    background: var(--text-dim);
+  }
+  .topology .connector.fan::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 2px;
+    height: 50%;
+    background: var(--text-dim);
+    transform: translateX(-50%);
+  }
+  .topology .connector .label {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel);
+    padding: 2px 8px;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    z-index: 1;
+  }
+
+  /* Pattern callout grid */
+  .pattern-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+  }
+  .pattern-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .pattern-card .ph { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .pattern-card .ph .name { font-weight: 700; font-size: 13px; color: var(--text); }
+  .pattern-card .ph .src { font-size: 10.5px; color: var(--text-dim); font-family: var(--mono); margin-left: auto; }
+  .pattern-card .body { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .pattern-card .where { font-size: 11.5px; color: var(--accent); margin-top: 6px; }
+
   /* Branches / HITL marker */
   .branch-box {
     background: rgba(208, 135, 112, 0.08);
@@ -184,35 +345,380 @@
   }
   .branch-box .body { font-size: 12.5px; color: var(--text); }
 
+  /* QA decision table */
+  .qa { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+  .qa .q {
+    background: var(--panel);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+  }
+  .qa .q .label { font-weight: 700; color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .qa .q .ans { font-size: 13px; color: var(--text); margin-top: 4px; }
+
   /* Footer */
   footer { color: var(--text-dim); font-size: 11px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 12px; }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
+
+  /* Granularity matrix */
+  table.gran {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 10px 0;
+  }
+  table.gran th, table.gran td {
+    text-align: left;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.gran th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.gran tr.recommend { background: rgba(163, 190, 140, 0.06); }
+  table.gran tr.recommend td:first-child::after { content: " ✓"; color: var(--prog); font-weight: bold; }
 </style>
 </head>
 <body>
 
-<h1>Agentic draft-solicitation workflow</h1>
+<h1>Agentic draft-solicitation workflow — multi-agent topology</h1>
 <div class="sub">
-  acquire-gov · M1 (LLM-assisted drafting) extending toward M3 ·
-  one <code>create_agent</code> run per <code>POST /draft-solicitation/section</code> ·
-  hover any block to see the Pydantic shape it emits ·
-  see <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a> for decisions
+  acquire-gov · M1 (LLM-assisted drafting) extending toward M3 · LangChain v1.0 (OSS) ·
+  see <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a> for decisions ·
+  see <a href="./m1-agentic-draft-workflow.md">spec</a> for endpoint contracts + tests
 </div>
+
+<nav class="toc">
+  <a href="#topology">1. Topology</a>
+  <a href="#decisions">2. Decisions</a>
+  <a href="#patterns">3. Patterns in use</a>
+  <a href="#drafter">4. SectionDrafterAgent internals</a>
+  <a href="#critic">5. ConsistencyCriticAgent internals</a>
+  <a href="#granularity">6. Granularity</a>
+  <a href="#costs">7. Costs &amp; aggregation</a>
+</nav>
 
 <div class="legend">
   <div class="item"><span class="chip chip-prog">programmatic</span> deterministic, no LLM call</div>
-  <div class="item"><span class="chip chip-llm">LLM</span> model call, structured output</div>
-  <div class="item"><span class="chip chip-hitl">HITL gate</span> middleware interrupt point</div>
+  <div class="item"><span class="chip chip-llm">LLM</span> model call</div>
+  <div class="item"><span class="chip chip-hitl">HITL gate</span> middleware interrupt</div>
   <div class="item"><span class="chip chip-hard">hard fail</span> raise on violation</div>
-  <div class="item"><span class="chip chip-free">free</span></div>
-  <div class="item"><span class="chip chip-low">low cost</span></div>
-  <div class="item"><span class="chip chip-high">high cost</span></div>
+  <div class="item"><span class="chip chip-coord">coordinator</span></div>
+  <div class="item"><span class="chip chip-drafter">drafter</span></div>
+  <div class="item"><span class="chip chip-critic">critic</span></div>
+  <div class="item"><span class="chip chip-pattern">v1.0 pattern</span></div>
 </div>
 
-<div class="grid" style="margin-top: 24px;">
+<!-- ============================================================ -->
+<!-- ================== 1. TOPOLOGY ============================ -->
+<!-- ============================================================ -->
+<h2 id="topology">1. Multi-agent topology</h2>
+<p style="font-size: 13px; color: var(--text-dim);">
+  Two entry paths: single-section (wizard's per-section "AI-draft" button, ADR-0012 baseline) and batch (new "Draft all AI sections" button, this update).
+  Batch path uses LangChain v1.0 <em>Router</em> pattern with <code>langgraph.types.Send</code> for parallel fan-out to <code>SectionDrafterAgent</code> subagents, then hands off to <code>ConsistencyCriticAgent</code> for cross-section validation before wizard Step 13 submit.
+</p>
 
-<!-- ============== LEFT: FLOW ============== -->
+<div class="topology">
+
+  <!-- Tier: entry -->
+  <div class="tier">
+    <div class="tier-label">Entry</div>
+    <div class="agent-card" style="border-color: var(--accent);">
+      <div class="agent-name">FastAPI handler</div>
+      <div class="agent-meta">app/api/draft.py · app/api/coordinator.py</div>
+      <div class="agent-chips">
+        <span class="chip chip-prog">programmatic</span>
+        <span class="chip chip-low">low cost</span>
+      </div>
+      <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px;">
+        Two routes:<br>
+        <code>POST /draft-solicitation/section</code> — single section, direct to drafter<br>
+        <code>POST /draft-solicitation/batch</code> — coordinator path
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><span class="label">batch path only</span></div>
+
+  <!-- Tier: coordinator -->
+  <div class="tier">
+    <div class="tier-label">Coordinator</div>
+    <div class="agent-card coord">
+      <div class="agent-name">DraftingCoordinatorAgent</div>
+      <div class="agent-chips">
+        <span class="chip chip-coord">coordinator</span>
+        <span class="chip chip-pattern">Router</span>
+        <span class="chip chip-prog">programmatic</span>
+        <span class="chip chip-free">free</span>
+      </div>
+      <div class="agent-meta">
+        custom StateGraph (no <code>create_router</code> helper exists in v1.0)<br>
+        node: <code>plan_drafting_order</code> → <code>Send</code> fan-out → <code>aggregate</code> → critic handoff
+      </div>
+      <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 8px;">
+        <strong>Routing rule:</strong> spawn one subagent per section with provenance ∈ {null}; skip sections already <code>human</code> / <code>ai</code> / <code>ai-edited</code> (CO has taken ownership).
+        Sub-agents run in parallel via <code>Send</code>; coordinator does not LLM-classify (deterministic mapping section_id→drafter).
+      </div>
+    </div>
+  </div>
+
+  <div class="connector fan"><span class="label">Send(...) ×N — parallel fan-out</span></div>
+
+  <!-- Tier: drafter subagents (parallel) -->
+  <div class="tier">
+    <div class="tier-label">Drafters · parallel</div>
+    <div class="fan-out">
+      <div class="agent-card drafter">
+        <div class="agent-name">SectionDrafterAgent("C")</div>
+        <div class="agent-chips">
+          <span class="chip chip-drafter">drafter</span>
+          <span class="chip chip-pattern">Tool-using</span>
+          <span class="chip chip-hitl">HITL</span>
+        </div>
+        <div class="agent-meta">create_agent · 6 tools · Sonnet draft</div>
+      </div>
+      <div class="agent-card drafter">
+        <div class="agent-name">SectionDrafterAgent("H")</div>
+        <div class="agent-chips">
+          <span class="chip chip-drafter">drafter</span>
+          <span class="chip chip-hitl">HITL</span>
+        </div>
+        <div class="agent-meta">create_agent · 6 tools · Sonnet draft</div>
+      </div>
+      <div class="agent-card drafter">
+        <div class="agent-name">SectionDrafterAgent("L")</div>
+        <div class="agent-chips">
+          <span class="chip chip-drafter">drafter</span>
+          <span class="chip chip-hitl">HITL</span>
+        </div>
+        <div class="agent-meta">create_agent · 6 tools · Sonnet draft · lean-corpus flag</div>
+      </div>
+      <div class="agent-card drafter">
+        <div class="agent-name">SectionDrafterAgent("M")</div>
+        <div class="agent-chips">
+          <span class="chip chip-drafter">drafter</span>
+          <span class="chip chip-hitl">HITL</span>
+        </div>
+        <div class="agent-meta">create_agent · 6 tools · Sonnet draft · lean-corpus flag</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><span class="label">aggregate FinalDraftSection × N</span></div>
+
+  <!-- Tier: aggregator -->
+  <div class="tier">
+    <div class="tier-label">Aggregate</div>
+    <div class="agent-card" style="border-color: var(--accent-2);">
+      <div class="agent-name">aggregate_section_drafts</div>
+      <div class="agent-chips">
+        <span class="chip chip-prog">programmatic</span>
+        <span class="chip chip-free">free</span>
+      </div>
+      <div class="agent-meta">Coordinator graph node · gathers Send returns into <code>SolicitationDraftBundle</code></div>
+      <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 8px;">
+        Any subagent returning <code>outcome="interrupted"</code> short-circuits the batch — coordinator returns a <code>BatchInterrupted</code> response with the per-section run_ids; wizard surfaces all pending interrupts at once.
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><span class="label">if no interrupts → critic</span></div>
+
+  <!-- Tier: critic -->
+  <div class="tier">
+    <div class="tier-label">Critic</div>
+    <div class="agent-card critic">
+      <div class="agent-name">ConsistencyCriticAgent</div>
+      <div class="agent-chips">
+        <span class="chip chip-critic">critic</span>
+        <span class="chip chip-pattern">Subagents</span>
+        <span class="chip chip-llm">LLM</span>
+        <span class="chip chip-low">low cost</span>
+      </div>
+      <div class="agent-meta">
+        create_agent · 3 tools · 1 LLM check (L↔M) · Nova Lite or Sonnet (config knob)
+      </div>
+      <div style="font-size: 11.5px; color: var(--text-dim); margin-top: 8px;">
+        Single agent invocation post-aggregate. Validates cross-section coherence: FAR 15.204-5 L↔M alignment, set-aside ↔ Section K, CLIN coverage. Emits <code>ConsistencyReport</code> — warn-only in Phase 1, hard-fail surface added in Phase 1.5.
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><span class="label">SolicitationDraftBundle + ConsistencyReport</span></div>
+
+  <!-- Tier: exit -->
+  <div class="tier">
+    <div class="tier-label">Exit</div>
+    <div class="agent-card" style="border-color: var(--accent);">
+      <div class="agent-name">Wizard Step 12 (Review) → Step 13 (Submit)</div>
+      <div class="agent-chips">
+        <span class="chip chip-prog">programmatic</span>
+        <span class="chip chip-hard">hard gate</span>
+      </div>
+      <div class="agent-meta">FAR 5.705 CO-approval modal still gates publish; warnings render inline</div>
+    </div>
+  </div>
+
+</div>
+
+<p style="font-size: 12px; color: var(--text-dim); margin-top: 0;">
+  <strong>Single-section path (existing ADR-0012):</strong> handler invokes <code>SectionDrafterAgent</code> directly, no Coordinator, no Critic.
+  Wizard's per-section "AI-draft" button uses this path. Coordinator + Critic are reachable only via the batch path or wizard Step 12.
+</p>
+
+<!-- ============================================================ -->
+<!-- ================== 2. DECISIONS ============================ -->
+<!-- ============================================================ -->
+<h2 id="decisions">2. The four design questions, answered</h2>
+<div class="qa">
+  <div class="q">
+    <div class="label">A · When do we aggregate?</div>
+    <div class="ans">
+      Two points. <strong>(1)</strong> Inside <code>DraftingCoordinatorAgent</code> after the parallel <code>Send</code> fan-out completes — assemble <code>SolicitationDraftBundle</code> from N <code>FinalDraftSection</code> returns.
+      <strong>(2)</strong> After <code>ConsistencyCriticAgent</code> emits <code>ConsistencyReport</code> — attach to bundle for wizard Step 13 submit. No aggregation inside individual <code>SectionDrafterAgent</code> runs; that's a single section, no fan-in.
+    </div>
+  </div>
+  <div class="q">
+    <div class="label">B · When (and whether) to run a critic pass?</div>
+    <div class="ans">
+      Two layers, both YES. <strong>Intra-section critic</strong> = the existing <code>validate_citations</code> tool (programmatic, hard-fail on unknown chunk_id) — ADR-0012 D2 baseline.
+      <strong>Cross-section critic</strong> = NEW <code>ConsistencyCriticAgent</code> invoked at wizard Step 12 (Review) and inside the batch coordinator before final aggregation. Validates FAR 15.204-5 L↔M alignment (semantic — LLM), set-aside ↔ Section K reps consistency (programmatic), CLIN coverage Section B ↔ C ↔ F ↔ L (programmatic).
+      <strong>Phase 1 = warn-only</strong> (wizard renders warnings; CO can override). Hard-fail upgrade is Phase 1.5.
+      Self-reflection / iterative critique loops are explicitly deferred — Phase 1 keeps the critic as a single non-iterative pass.
+    </div>
+  </div>
+  <div class="q">
+    <div class="label">C · Do we need a coordinator / routing logic for the sections?</div>
+    <div class="ans">
+      YES for the batch path; NO for single-section. <code>DraftingCoordinatorAgent</code> is a <strong>custom <code>StateGraph</code></strong> (LangChain v1.0 provides no <code>create_router</code> / <code>create_supervisor</code> helper as of this fetch — only the Router pattern via <code>Send</code>).
+      Routing is <strong>deterministic, not LLM-classified</strong>: <code>section_id ∈ {C,H,L,M} AND provenance == null</code> → spawn one <code>SectionDrafterAgent</code> via <code>Send(section_id, args)</code>. No model decides which sections to draft; the wizard's per-section provenance + the M2 <code>_FAR_SECTION_ENUM</code> are the rule.
+    </div>
+  </div>
+  <div class="q">
+    <div class="label">D · One generation phase / one-at-a-time / multi / by FAR Parts?</div>
+    <div class="ans">
+      Per-section default + optional batch via Coordinator. <strong>NOT by Parts</strong>. The FAR UCF Parts (I = A–H + I, II = I clauses, III = J, IV = K + L + M) split drafted/retrieved/human sections inconsistently — Part I has 2 drafted (C, H) + 5 human (A, B, D, E, F, G) + 1 retrieved (I); Part IV has 2 drafted (L, M) + 1 human (K). Per-Part agents would either skip mostly-empty Parts or wrap human-typed sections in agent shells with nothing to do. Per-AI-section is the clean fan-out unit.
+      See §6 (Granularity) for the option table.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ================== 3. PATTERNS ============================= -->
+<!-- ============================================================ -->
+<h2 id="patterns">3. LangChain v1.0 patterns in use</h2>
+<p style="font-size: 12px; color: var(--text-dim);">
+  Canonical v1.0 multi-agent patterns from <a href="https://docs.langchain.com/oss/python/langchain/multi-agent">docs.langchain.com/oss/python/langchain/multi-agent</a>. Each pattern's role in our topology is named in "Where" below.
+</p>
+
+<div class="pattern-grid">
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">Router</span>
+      <span class="name">parallel dispatch</span>
+      <span class="src">multi-agent/router</span>
+    </div>
+    <div class="body">
+      Routing step classifies input → directs to specialist agents in parallel. v1.0 has no <code>create_router</code> helper — implemented as custom <code>StateGraph</code> using <code>langgraph.types.Send</code>. Quote: <em>"Use Send to fan out to multiple specialized agents in parallel."</em>
+    </div>
+    <div class="where">Where: <code>DraftingCoordinatorAgent</code> — deterministic section_id routing, not LLM-classified.</div>
+  </div>
+
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">Subagents</span>
+      <span class="name">tool-wrapped agent</span>
+      <span class="src">multi-agent/subagents</span>
+    </div>
+    <div class="body">
+      Subagent registered as a <code>@tool</code> whose body calls <code>subagent.invoke(...)</code> and returns the result. Main agent maintains conversation context; subagents stateless by design. Default behavior is sequential — parallelism is explicit (Router/Send).
+    </div>
+    <div class="where">Where: <code>ConsistencyCriticAgent</code> invoked from coordinator graph node as a sub-invocation post-aggregate.</div>
+  </div>
+
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">Tool-using agent</span>
+      <span class="name">create_agent</span>
+      <span class="src">agents</span>
+    </div>
+    <div class="body">
+      Single-agent harness: <code>create_agent(model, tools, system_prompt, response_format, middleware, checkpointer)</code>. Model picks tool order from the prompt + tool descriptions; harness loops until <code>response_format</code> is produced.
+    </div>
+    <div class="where">Where: <code>SectionDrafterAgent</code> (existing, ADR-0012 baseline) and <code>ConsistencyCriticAgent</code> (new).</div>
+  </div>
+
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">Critic / Reviewer</span>
+      <span class="name">single-pass validation</span>
+      <span class="src">— (composition)</span>
+    </div>
+    <div class="body">
+      Not a named v1.0 helper. Composition: a separate <code>create_agent</code> instance whose tools validate prior outputs. Phase 1 keeps it non-iterative (no reflection loop) — one pass, warn-only output, attached to bundle.
+    </div>
+    <div class="where">Where: <code>ConsistencyCriticAgent</code> + intra-section <code>validate_citations</code> tool (hard-fail layer).</div>
+  </div>
+
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">HITL interrupt</span>
+      <span class="name">HumanInTheLoopMiddleware</span>
+      <span class="src">agents/middleware</span>
+    </div>
+    <div class="body">
+      Middleware interrupts agent loop before a designated tool call. Predicate reads <code>tool_call.args</code> (input, not return). Resume via <code>Command(resume=...)</code> from <code>langgraph.types</code>.
+    </div>
+    <div class="where">Where: inside every <code>SectionDrafterAgent</code> on the <code>compute_gate_decision</code> tool's hitl-band input score (ADR-0012 D6).</div>
+  </div>
+
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">Structured output</span>
+      <span class="name">response_format</span>
+      <span class="src">structured-output</span>
+    </div>
+    <div class="body">
+      Pass a Pydantic <code>BaseModel</code> to <code>create_agent(response_format=...)</code>; result lands in <code>state["structured_response"]</code>. The v1.0 idiom for agentic structured output (not <code>with_structured_output</code>, which is the outside-of-agents path).
+    </div>
+    <div class="where">Where: every agent in the topology — <code>FinalDraftSection</code>, <code>ConsistencyReport</code>, <code>SolicitationDraftBundle</code>.</div>
+  </div>
+
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">Checkpointing</span>
+      <span class="name">MongoDBSaver</span>
+      <span class="src">langgraph-checkpoint-mongodb</span>
+    </div>
+    <div class="body">
+      Per-thread state persistence; required for HITL multi-day pause. <code>thread_id</code> = <code>{solicitation_id}:{section_id}:{request_id}</code>; coordinator threads use <code>{solicitation_id}:batch:{request_id}</code>. TTL=None per ADR-0012 D4.
+    </div>
+    <div class="where">Where: every agent instance writes to <code>agent_checkpoints</code> + <code>agent_checkpoint_writes</code>.</div>
+  </div>
+
+  <div class="pattern-card">
+    <div class="ph">
+      <span class="chip chip-pattern">Handoffs</span>
+      <span class="name">NOT used</span>
+      <span class="src">multi-agent/handoffs</span>
+    </div>
+    <div class="body">
+      Agents transferring control to each other via tool calls (stateful, agent-to-user direct response). Right pattern for chat-bot ensembles; wrong pattern for our deterministic-routing fan-out + critic.
+    </div>
+    <div class="where">Where: <strong>not used</strong> — flagged here so it doesn't sneak in via reviewer suggestion.</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ================== 4. SECTION DRAFTER ====================== -->
+<!-- ============================================================ -->
+<h2 id="drafter">4. <code>SectionDrafterAgent</code> internals (per-section drilldown)</h2>
+<p style="font-size: 12px; color: var(--text-dim);">
+  One <code>create_agent</code> run per section. Hover any block to see the Pydantic shape it produces. Unchanged from ADR-0012 baseline.
+</p>
+
+<div class="grid" style="margin-top: 12px;">
+
 <div class="flow">
 
   <!-- Stage 0 — handler entry -->
@@ -248,59 +754,46 @@
       <span class="chip chip-prog">programmatic</span>
       <span class="chip chip-free">free</span>
       <span class="chip chip-model">Bedrock Rerank 1.0</span>
-      <span class="file">app/agents/tools/retrieve.py</span>
+      <span class="file">app/agents/tools/retrieve_far.py</span>
     </div>
     <div class="desc">
-      Calls existing <code>build_far_retriever(tenant_id=…)</code> factory (ADR-0008 D2) →
-      <code>MongoDBAtlasHybridSearchRetriever.invoke</code> → Bedrock Rerank.
-      Tenant pre-filter is structural; agent cannot bypass.
-      Returns <code>rerank_top_score</code> as a separate field so the agent can pass it to <code>compute_gate_decision</code> (stage 4) as an input arg.
+      Calls existing <code>build_far_retriever(tenant_id=…)</code> factory (ADR-0008 D2) → <code>MongoDBAtlasHybridSearchRetriever.invoke</code> → Bedrock Rerank. Returns <code>rerank_top_score</code> separately so agent can pass to stage 4 as input arg.
     </div>
-    <div class="schema-pop"><span class="title">→ produces RetrievedEvidence</span># Note: gate_decision is NOT a field here.
-# The gate decision is produced by a separate tool
-# (stage 4) so the HITL middleware predicate has a
-# tool to gate on whose INPUT args (the score) fully
-# determine its return.
+    <div class="schema-pop"><span class="title">→ produces RetrievedEvidence</span># gate_decision is NOT a field here — stage 4 produces it
+# so HITL middleware predicate has tool args to gate on.
 
 class Chunk(BaseModel):
-    chunk_id: str
-    text: str
-    far_part: str
-    far_section: str
-    far_clause: str
-    snapshot_date: date
-    relevance_score: float
+    chunk_id: str; text: str
+    far_part: str; far_section: str
+    far_clause: str | None
+    snapshot_date: date; relevance_score: float
 
 class RetrievedEvidence(BaseModel):
     chunks: list[Chunk]
-    vector_weight: float
-    fulltext_weight: float
-    rerank_top_score: float | None  # None = rerank outage
+    vector_weight: float; fulltext_weight: float
+    rerank_top_score: float | None   # None = rerank outage
     degraded_mode: bool = False</div>
   </div>
 
   <div class="arrow">↓</div>
 
-  <!-- Stage 2 — retrieve related solicitations -->
+  <!-- Stage 2 -->
   <div class="stage">
     <div class="row1">
       <span class="name">2 · <code>retrieve_related_solicitations</code> <span style="color:var(--text-dim); font-size:11px; font-weight:400;">(opportunistic)</span></span>
       <span class="chip chip-prog">programmatic</span>
       <span class="chip chip-free">free</span>
-      <span class="file">app/agents/tools/retrieve.py</span>
+      <span class="file">app/agents/tools/retrieve_related.py</span>
     </div>
     <div class="desc">
-      Same retriever factory, filtered <code>doc_class=internal_solicitation</code> + same <code>tenant_id</code>.
-      Skipped when <code>naics</code>/<code>set_aside</code> are null (zero token / zero Mongo cost).
+      Same retriever factory, filtered <code>doc_class=internal_solicitation</code> + same <code>tenant_id</code>. Skipped when <code>naics</code>/<code>set_aside</code> are null.
     </div>
     <div class="schema-pop"><span class="title">→ produces RelatedSolicitations</span>class SolicitationSummary(BaseModel):
-    solicitation_id: str
-    title: str
-    naics: str | None
-    set_aside: str | None
+    solicitation_id: str; title: str
+    naics: str | None; set_aside: str | None
     contract_type: str | None
-    award_status: Literal[
-        "internal_review","published","awarded","cancelled"]
+    award_status: Literal["internal_review",
+        "published","awarded","cancelled"]
     snapshot_date: date
 
 class RelatedSolicitations(BaseModel):
@@ -310,37 +803,34 @@ class RelatedSolicitations(BaseModel):
 
   <div class="arrow">↓</div>
 
-  <!-- Stage 3 — extract requirements -->
+  <!-- Stage 3 -->
   <div class="stage">
     <div class="row1">
       <span class="name">3 · <code>extract_section_requirements</code></span>
       <span class="chip chip-llm">LLM</span>
       <span class="chip chip-low">low cost</span>
-      <span class="chip chip-model">amazon.nova-lite-v1:0</span>
-      <span class="file">app/agents/tools/extract.py</span>
+      <span class="chip chip-model">config.BEDROCK_EXTRACT_MODEL</span>
+      <span class="file">app/agents/tools/extract_requirements.py</span>
     </div>
     <div class="desc">
-      Parses CO's <code>user_constraints</code> free-text into structured <code>Requirement</code> rows.
-      Nova Lite is ~30× cheaper than Sonnet and adequate for structured extraction.
-      Skipped when <code>user_constraints</code> is null.
+      Parses CO's <code>user_constraints</code> free-text into structured <code>Requirement</code> rows. Uses <code>with_structured_output</code> directly (outside-of-agents path). Default model: Nova Lite; spec-knob.
     </div>
     <div class="schema-pop"><span class="title">→ produces ExtractedRequirements</span>class Requirement(BaseModel):
     text: str
     must_or_should: Literal["must","should"]
     far_clause_hint: str | None
-    source_span: tuple[int, int]   # offsets in user_constraints
+    source_span: tuple[int, int]
 
 class ExtractedRequirements(BaseModel):
     requirements: list[Requirement]
-    source_text_hash: str   # SHA256 of user_constraints
-    model: str = "amazon.nova-lite-v1:0"
-    input_tokens: int
-    output_tokens: int</div>
+    source_text_hash: str
+    model: str
+    input_tokens: int; output_tokens: int</div>
   </div>
 
   <div class="arrow">↓</div>
 
-  <!-- Stage 4 — compute gate decision (HITL interrupt point) -->
+  <!-- Stage 4 — HITL interrupt -->
   <div class="stage" style="border-color: var(--hitl);">
     <div class="row1">
       <span class="name">4 · <code>compute_gate_decision</code></span>
@@ -350,19 +840,12 @@ class ExtractedRequirements(BaseModel):
       <span class="file">app/agents/tools/gate.py</span>
     </div>
     <div class="desc">
-      Pure threshold: <code>rerank_top_score</code> → {<code>pass</code>, <code>hitl</code>, <code>withhold</code>, <code>rerank_unavailable_passthrough</code>}.
-      <strong>HumanInTheLoopMiddleware interrupts here</strong> when decision ≠ <code>pass</code> AND request did not carry a prior CO decision.
+      Pure threshold: <code>rerank_top_score</code> → {pass, hitl, withhold, rerank_unavailable_passthrough}. <strong>Middleware predicate reads INPUT arg</strong>, applies same threshold helper. Interrupts only on hitl band.
     </div>
-    <div class="schema-pop"><span class="title">→ tool input + GateDecisionResult</span># Tool TAKES rerank_top_score as input arg so the
-# middleware predicate (which only sees tool_call.args,
-# not the return value) can decide to interrupt by
-# applying the SAME threshold against the input.
-
-@tool
+    <div class="schema-pop"><span class="title">→ tool input + GateDecisionResult</span>@tool
 def compute_gate_decision(
     rerank_top_score: float | None,
-) -> GateDecisionResult:
-    """Decide pass/hitl/withhold per ADR-0007 D3."""
+) -> GateDecisionResult: ...
 
 class GateDecisionResult(BaseModel):
     gate_decision: Literal["pass","hitl","withhold",
@@ -370,50 +853,41 @@ class GateDecisionResult(BaseModel):
     rerank_top_score: float | None
     reason: str
 
-# middleware predicate — reads INPUT arg, not return:
+# middleware predicate — reads INPUT, not return:
 def _interrupt_on_hitl_band(tc) -> bool:
     s = tc.args.get("rerank_top_score")
-    if s is None:    # passthrough → no interrupt
-        return False
-    return WITHHOLD_T <= s < PASS_T  # hitl band only
+    if s is None: return False    # passthrough
+    return WITHHOLD_T <= s < PASS_T
 
 HumanInTheLoopMiddleware(interrupt_on={
     "compute_gate_decision": _interrupt_on_hitl_band,
 })</div>
   </div>
 
-  <!-- HITL pause branch box -->
   <div class="branch-box">
     <div class="label">⏸ HITL interrupt path · multi-day pause persisted</div>
     <div class="body">
-      Middleware halts the run via <code>langgraph.types.Command</code> · <code>MongoDBSaver</code> writes full state to <code>agent_checkpoints</code> · handler returns
-      <code>{ outcome: "interrupted", run_id, pending_tool_call }</code> · UI surfaces "Pending CO decision" panel ·
-      CO resumes via <code>POST /draft-solicitation/section/resume</code> carrying
-      <code>Command(resume={"decisions":[{"type":"approve"|"edit"|"reject"}]})</code> · run continues from checkpoint.
-      TTL = None · no expiry · FAR 4.805 6-year retention floor honored.
+      Middleware halts via <code>Command(resume=...)</code> · MongoDBSaver writes full state · handler returns <code>{outcome:"interrupted", run_id, pending_tool_call}</code> · UI surfaces "Pending CO decision" panel · CO resumes via <code>POST /draft-solicitation/section/resume</code>. TTL=None · FAR 4.805 6-year retention floor inherited via audit row (not the checkpoint store).
     </div>
   </div>
 
   <div class="arrow">↓</div>
 
-  <!-- Stage 5 — draft section text -->
+  <!-- Stage 5 — draft section -->
   <div class="stage">
     <div class="row1">
       <span class="name">5 · <code>draft_section_text</code></span>
       <span class="chip chip-llm">LLM</span>
       <span class="chip chip-high">high cost</span>
-      <span class="chip chip-model">us.anthropic.claude-sonnet-4-5-v1:0</span>
+      <span class="chip chip-model">config.BEDROCK_GEN_MODEL (Sonnet)</span>
       <span class="file">app/agents/tools/draft.py</span>
     </div>
     <div class="desc">
-      The only Sonnet call per run. Context is delimiter-wrapped (ADR-0011 D1.2 · <code>&lt;retrieved_context type="far_data" trust_level="reference_only"&gt;</code>).
-      Model emits text + structured <code>claim_chunk_map</code> so downstream validation is mechanical, not stylistic.
-      Agent's system prompt + tool docstrings direct the agent to NOT call this tool when the prior <code>compute_gate_decision</code> returned <code>withhold</code>;
-      under <code>hitl</code>, the middleware has already paused before this tool runs. Cost saving is steered, not harness-enforced (ADR-0012 D2 caveats).
+      The only Sonnet call per drafter run. Delimiter-wrap per ADR-0011 D1.2. Model emits text + structured <code>claim_chunk_map</code>. Agent's system prompt + tool docstrings steer ordering; harness does not enforce.
     </div>
     <div class="schema-pop"><span class="title">→ produces SectionDraftSkeleton</span>class ClaimCitation(BaseModel):
     sentence_index: int
-    chunk_id: str       # MUST be in retrieved set
+    chunk_id: str    # MUST be in retrieved set
     far_clause: str
     quote_span: tuple[int, int] | None
 
@@ -421,14 +895,13 @@ class SectionDraftSkeleton(BaseModel):
     section_text: str
     claim_chunk_map: list[ClaimCitation]
     model: str
-    input_tokens: int
-    output_tokens: int
-    completion_hash: str   # SHA256, raw never stored</div>
+    input_tokens: int; output_tokens: int
+    completion_hash: str</div>
   </div>
 
   <div class="arrow">↓</div>
 
-  <!-- Stage 6 — validate citations (hard fail) -->
+  <!-- Stage 6 -->
   <div class="stage" style="border-color: var(--hard);">
     <div class="row1">
       <span class="name">6 · <code>validate_citations</code></span>
@@ -438,140 +911,103 @@ class SectionDraftSkeleton(BaseModel):
       <span class="file">app/citations.py</span>
     </div>
     <div class="desc">
-      Existing <code>verify_citations</code> from M2 (citations.py:32-61). Every <code>chunk_id</code> in <code>claim_chunk_map</code> must exist in the retrieved set.
-      Unknown ID → raise <code>CitationVerificationFailed</code> → 422 · audit <code>outcome="citation_verification_failed"</code>. No fallback, no remediation loop.
+      Existing M2 <code>verify_citations</code>. Unknown <code>chunk_id</code> → raise <code>CitationVerificationFailed</code> → 422 · audit <code>outcome="citation_verification_failed"</code>. No fallback. <strong>This is the intra-section critic layer</strong>.
     </div>
     <div class="schema-pop"><span class="title">→ produces ValidationResult</span>class ValidationResult(BaseModel):
     valid: bool
     unknown_chunk_ids: list[str]
-    grounding_score: float
-    # 1.0 = every claim cited; lower = some claims uncited
-    # but no false IDs. False IDs always raise.</div>
+    grounding_score: float</div>
   </div>
 
   <div class="arrow">↓</div>
 
-  <!-- Stage 7 — agent response (structured output) -->
+  <!-- Stage 7 -->
   <div class="stage" style="border-color: var(--accent);">
     <div class="row1">
-      <span class="name">7 · Agent <code>response_format</code> → final structured output</span>
+      <span class="name">7 · Agent <code>response_format</code> → FinalDraftSection</span>
       <span class="chip chip-prog">programmatic</span>
       <span class="chip chip-free">free</span>
       <span class="file">app/api/draft.py</span>
     </div>
     <div class="desc">
-      <code>create_agent(response_format=FinalDraftSection)</code> lands the result in <code>state["structured_response"]</code> — the v1.0 idiom (NOT <code>with_structured_output</code> on the chat model).
-      Audit row written with <code>tool_calls[]</code> sub-record per ADR-0008 D3 + D9. Response shipped to wizard.
+      <code>response_format=FinalDraftSection</code> lands result in <code>state["structured_response"]</code> — v1.0 idiom. Audit row with <code>tool_calls[]</code> sub-record. Shipped to wizard OR returned via Send to Coordinator.
     </div>
-    <div class="schema-pop"><span class="title">→ FinalDraftSection · the agent's response_format</span># Canonical outcome enum — D3 source of truth.
-# "hitl_pending" is REMOVED (was M2 "draft + tick later"
-# pattern; replaced by interrupt+resume flow).
-# "query_blocked" is NOT here — that path 403s before
-# the agent runs and writes its own audit row.
-
-class Citation(BaseModel):
-    chunk_id: str
-    far_part: str
-    far_section: str
-    far_clause: str
-    snapshot_date: date
-    relevance_score: float
-    text: str
-
-class FinalDraftSection(BaseModel):
+    <div class="schema-pop"><span class="title">→ FinalDraftSection · canonical 4-value outcome</span>class FinalDraftSection(BaseModel):
     outcome: Literal[
-        "draft_returned",
-        "withheld",
-        "interrupted",
-        "citation_verification_failed",
+        "draft_returned","withheld",
+        "interrupted","citation_verification_failed",
     ]
     section_text: str | None
     section_id: str   # matches _FAR_SECTION_ENUM (no I)
     citations: list[Citation]
-    gate_decision: Literal[
-        "pass","hitl","withhold",
+    gate_decision: Literal["pass","hitl","withhold",
         "rerank_unavailable_passthrough"]
     requires_human_review: bool
     rerank_top_score: float | None
     request_id: str
-    run_id: str</div>
+    run_id: str
+    pending_tool_call: PendingToolCall | None = None</div>
   </div>
 
 </div>
 
-<!-- ============== RIGHT: SIDE PANEL ============== -->
 <div class="side">
 
   <div class="card">
-    <h3>Context lifecycle</h3>
+    <h3>Context lifecycle (per Drafter)</h3>
     <div class="kv">
       <div class="k">harness</div>           <div class="v">langchain.agents.create_agent</div>
-      <div class="k">version</div>           <div class="v">LangChain v1.0 (OSS)</div>
       <div class="k">thread_id</div>         <div class="v">{sol_id}:{section_id}:{request_id}</div>
       <div class="k">state</div>             <div class="v">full message history + tool I/O</div>
-      <div class="k">store</div>             <div class="v">MongoDBSaver (langchain-mongodb)</div>
-      <div class="k">db</div>                <div class="v">acquire_gov (reuses existing)</div>
-      <div class="k">collections</div>       <div class="v">agent_checkpoints · agent_checkpoint_writes</div>
-      <div class="k">TTL</div>               <div class="v">None — no expiry; FAR 4.805 retention floor</div>
-      <div class="k">resume protocol</div>   <div class="v">langgraph.types.Command(resume={…})</div>
+      <div class="k">store</div>             <div class="v">MongoDBSaver</div>
+      <div class="k">TTL</div>               <div class="v">None — multi-day pause</div>
+      <div class="k">resume</div>            <div class="v">Command(resume={...})</div>
     </div>
   </div>
 
   <div class="card">
-    <h3>Cost per section draft</h3>
+    <h3>Per-drafter cost</h3>
     <table class="costs">
-      <thead>
-        <tr><th>Stage</th><th>Model</th><th class="num">~tok in</th><th class="num">~tok out</th><th class="num">~USD</th></tr>
-      </thead>
+      <thead><tr><th>Stage</th><th class="num">USD</th></tr></thead>
       <tbody>
-        <tr><td>1 retrieve_far</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0010 *</td></tr>
-        <tr><td>2 retrieve_related</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0010 *</td></tr>
-        <tr><td>3 extract_reqs</td><td>nova-lite</td><td class="num">500</td><td class="num">200</td><td class="num">0.0005</td></tr>
-        <tr><td>4 gate_decision</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0000</td></tr>
-        <tr><td>5 draft_section</td><td>sonnet-4-5</td><td class="num">6000</td><td class="num">2000</td><td class="num">0.0480</td></tr>
-        <tr><td>6 validate_cit</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0000</td></tr>
-        <tr class="total"><td>per draft</td><td>—</td><td class="num">~6500</td><td class="num">~2200</td><td class="num">~$0.05</td></tr>
+        <tr><td>1 retrieve_far + rerank</td><td class="num">0.0010</td></tr>
+        <tr><td>2 retrieve_related</td><td class="num">0.0010 *</td></tr>
+        <tr><td>3 extract_reqs (Nova Lite)</td><td class="num">0.0005 *</td></tr>
+        <tr><td>4 gate_decision</td><td class="num">0.0000</td></tr>
+        <tr><td>5 draft_section (Sonnet)</td><td class="num">0.0480</td></tr>
+        <tr><td>6 validate_citations</td><td class="num">0.0000</td></tr>
+        <tr class="total"><td>per drafter</td><td class="num">~$0.05</td></tr>
       </tbody>
     </table>
     <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px;">
-      * Bedrock Rerank 1.0 ~$0.001/call · Sonnet $3/M in, $15/M out · Nova Lite $0.06/M in, $0.24/M out (2026-Q2 listing).
-      Withhold path skips stages 5+6 → ~$0.0025/draft.
+      * skipped when args null. Withhold path ≈ $0.0025 (skips stages 5+6 if agent honors steering).
     </div>
   </div>
 
   <div class="card">
-    <h3>Cost-savings rationale</h3>
-    <ul style="margin: 0; padding-left: 16px; font-size: 12.5px;">
-      <li><strong>One Sonnet call per run.</strong> Stage 5 is the only high-cost step; everything else is programmatic or Nova Lite.</li>
-      <li><strong>HITL interrupt before stage 5.</strong> On <code>hitl</code> gate band, middleware halts BEFORE the Sonnet call → CO previews + can edit constraints. Resume runs the draft only if CO approves.</li>
-      <li><strong>Withhold path skips drafting.</strong> On <code>withhold</code> gate, the agent's response-format + system prompt direct it to terminate without calling <code>draft_section_text</code>. Saving depends on the model honoring tool-order steering — eval gate catches drift.</li>
-      <li><strong>Lightweight extractor model.</strong> Nova Lite at $0.06/M in · $0.24/M out vs. Sonnet $3/M · $15/M — ~50× input / ~60× output cost gap. Spec pins the exact model via <code>config.BEDROCK_EXTRACT_MODEL</code> knob.</li>
-      <li><strong>No LLM judge in the loop.</strong> Phase 1 keeps the Nova Micro judge at the request edge (still stubbed; Phase 1.5).</li>
-      <li><strong>Opportunistic retrieval.</strong> Stage 2 skipped when naics/set_aside null — zero wasted Mongo + rerank cost.</li>
-    </ul>
+    <h3>Batch path cost (4 drafters + critic)</h3>
+    <table class="costs">
+      <thead><tr><th>Stage</th><th class="num">USD</th></tr></thead>
+      <tbody>
+        <tr><td>Coordinator (programmatic)</td><td class="num">0.0000</td></tr>
+        <tr><td>4× SectionDrafterAgent</td><td class="num">~0.2000</td></tr>
+        <tr><td>aggregate</td><td class="num">0.0000</td></tr>
+        <tr><td>ConsistencyCriticAgent (1 LLM check)</td><td class="num">~0.0150</td></tr>
+        <tr class="total"><td>per batch</td><td class="num">~$0.22</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px;">
+      4 drafters run in parallel via <code>Send</code> — wall clock ≈ slowest drafter, not sum.
+    </div>
   </div>
 
   <div class="card">
-    <h3>Observability (LangSmith only)</h3>
+    <h3>Observability (LangSmith)</h3>
     <div class="kv">
-      <div class="k">env vars</div>     <div class="v">LANGSMITH_TRACING · LANGSMITH_API_KEY · LANGSMITH_PROJECT</div>
-      <div class="k">auto-traced</div>  <div class="v">every LLM span · every tool span · run latency · token counts</div>
-      <div class="k">tags</div>         <div class="v">[m1, draft-solicitation, section-{X}]</div>
+      <div class="k">trace shape</div>  <div class="v">batch run = parent span; each Send subagent = child span; critic = child span</div>
+      <div class="k">tags</div>         <div class="v">[m1, batch, section-{X}] or [m1, drafter, section-{X}]</div>
       <div class="k">metadata</div>     <div class="v">request_id · solicitation_id · section_id · tenant_id</div>
-      <div class="k">PII redaction</div><div class="v">N/A Phase 1 (synthetic-only); env-flagged for Phase 1.5</div>
-      <div class="k">NOT this</div>     <div class="v">OpenTelemetry · AIOps · full request-path tracing (PRD §4 excluded)</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>UI adjustment magnitude</h3>
-    <div class="kv">
-      <div class="k">wizard struct</div><div class="v">no change · 13 UCF steps preserved</div>
-      <div class="k">section-card</div><div class="v">+1 surface ("Pending CO decision") · +run_id field</div>
-      <div class="k">solicitation.service</div><div class="v">+1 method · resumeSection(run_id, decision)</div>
-      <div class="k">SectionAudit</div><div class="v">+run_id field (additive)</div>
-      <div class="k">backend</div>     <div class="v">draft.py rewrite · new /resume endpoint · 6 tool modules</div>
-      <div class="k">estimate</div>    <div class="v">~1 FE day · ~3–4 BE days</div>
+      <div class="k">NOT this</div>     <div class="v">OpenTelemetry · AIOps (PRD §4)</div>
     </div>
   </div>
 
@@ -579,28 +1015,212 @@ class FinalDraftSection(BaseModel):
 
 </div>
 
-<h2>Why these stages, in this order</h2>
-<p>
-  Order is <strong>not</strong> hardcoded in the handler — the agent loop chooses tool order, constrained by:
-  (a) tool docstrings describing preconditions ("must call <code>retrieve_far_clauses</code> before <code>draft_section_text</code>"),
-  (b) the <code>response_format</code> validator requiring <code>citations</code> non-empty when <code>outcome="draft_returned"</code>,
-  and (c) the HITL middleware interrupt point on stage 4.
-  Stage 5 is the highest-cost step and runs only when stage 4 returned <code>pass</code> (or the CO has explicitly resumed past a non-pass decision).
-  Stage 6 hard-fails the run if stage 5's <code>claim_chunk_map</code> references any chunk_id not in stage 1's retrieved set —
-  the same guarantee M2 ships today, now enforced inside the agent loop.
+<!-- ============================================================ -->
+<!-- ================== 5. CRITIC INTERNALS ===================== -->
+<!-- ============================================================ -->
+<h2 id="critic">5. <code>ConsistencyCriticAgent</code> internals</h2>
+<p style="font-size: 12px; color: var(--text-dim);">
+  Single non-iterative pass. Three tools — one LLM (semantic L↔M alignment), two programmatic. Output is <strong>warn-only</strong> in Phase 1; wizard renders warnings inline at Step 12 but does not block submit. Hard-fail surface deferred to Phase 1.5.
 </p>
 
-<h2>Where the existing UI maps in</h2>
-<p>
-  Wizard steps <strong>4 (Section C), 6 (Section H), 10 (Section L), 11 (Section M)</strong> are the only AI-drafted steps —
-  each is one <code>POST /draft-solicitation/section</code> call → one agent run end-to-end.
-  Section <strong>I (clauses)</strong> is retrieved-only and is served by the existing <code>POST /retrieve</code> endpoint, not by this agentic endpoint — the M2 <code>_FAR_SECTION_ENUM</code> excludes I and is preserved verbatim (ADR-0012 D3, D5.1).
-  Other sections (A, B, D, E, F, G, J, K) bypass the agent entirely — pure human textarea, provenance tagged <code>human</code> client-side.
-</p>
+<div class="flow" style="max-width: 900px;">
+
+  <div class="stage" style="border-color: var(--critic);">
+    <div class="row1">
+      <span class="name">C1 · <code>check_l_m_alignment</code></span>
+      <span class="chip chip-llm">LLM</span>
+      <span class="chip chip-low">low cost</span>
+      <span class="chip chip-model">config.BEDROCK_CRITIC_MODEL (Nova Lite or Sonnet)</span>
+    </div>
+    <div class="desc">
+      FAR 15.204-5: Section L (Instructions to Offerors) and Section M (Evaluation Factors) must align — every L instruction should map to an M factor and vice versa. Semantic check; not regex-able. ~1k input / ~300 output tokens.
+    </div>
+    <div class="schema-pop"><span class="title">→ produces LMAlignmentReport</span>class LMMismatch(BaseModel):
+    type: Literal["l_without_m","m_without_l","weak_mapping"]
+    l_instruction: str | None
+    m_factor: str | None
+    severity: Literal["info","warn","fail"]
+    rationale: str
+
+class LMAlignmentReport(BaseModel):
+    mismatches: list[LMMismatch]
+    overall_severity: Literal["info","warn","fail"]
+    model: str
+    input_tokens: int; output_tokens: int</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <div class="stage" style="border-color: var(--critic);">
+    <div class="row1">
+      <span class="name">C2 · <code>check_set_aside_consistency</code></span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+    </div>
+    <div class="desc">
+      Section A set-aside designation (8(a), SDVOSB, WOSB, HUBZone, total small business) must match Section K reps + certs the offeror is required to make. Lookup table; no LLM. Emits warn if mismatch.
+    </div>
+    <div class="schema-pop"><span class="title">→ produces SetAsideConsistencyReport</span>class SetAsideMismatch(BaseModel):
+    set_aside: str             # Section A value
+    expected_reps: list[str]   # FAR clauses required for that set-aside
+    actual_reps: list[str]     # FAR clauses cited in Section K
+    missing: list[str]
+    extra: list[str]
+    severity: Literal["info","warn","fail"]
+
+class SetAsideConsistencyReport(BaseModel):
+    mismatches: list[SetAsideMismatch]
+    overall_severity: ...</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <div class="stage" style="border-color: var(--critic);">
+    <div class="row1">
+      <span class="name">C3 · <code>check_clin_coverage</code></span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+    </div>
+    <div class="desc">
+      Section B CLINs must each have: a SOW reference (Section C), a delivery schedule (Section F), and an instruction in Section L for the offeror to price/respond. Cross-section coverage check, regex + token match.
+    </div>
+    <div class="schema-pop"><span class="title">→ produces CLINCoverageReport</span>class CLINGap(BaseModel):
+    clin_id: str               # e.g., "0001"
+    missing_in: list[Literal["C","F","L"]]
+    severity: Literal["info","warn","fail"]
+
+class CLINCoverageReport(BaseModel):
+    gaps: list[CLINGap]
+    overall_severity: ...</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <div class="stage" style="border-color: var(--accent);">
+    <div class="row1">
+      <span class="name">C4 · Agent <code>response_format</code> → ConsistencyReport</span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+    </div>
+    <div class="desc">
+      Aggregates the three sub-reports into a single <code>ConsistencyReport</code>. Phase 1: <code>overall_severity</code> is the max of children but the wizard renders all severities as warnings — no submit-block. Audit row written via <code>action="consistency_critic"</code>.
+    </div>
+    <div class="schema-pop"><span class="title">→ ConsistencyReport · response_format</span>class ConsistencyReport(BaseModel):
+    solicitation_id: str
+    run_id: str
+    lm_alignment: LMAlignmentReport
+    set_aside_consistency: SetAsideConsistencyReport
+    clin_coverage: CLINCoverageReport
+    overall_severity: Literal["info","warn","fail"]
+    blocks_submit: bool = False   # Phase 1: always False
+    model_used: str | None        # critic LLM model
+    timestamp: datetime</div>
+  </div>
+
+</div>
+
+<!-- ============================================================ -->
+<!-- ================== 6. GRANULARITY ========================== -->
+<!-- ============================================================ -->
+<h2 id="granularity">6. Granularity options (and why per-section + optional batch wins)</h2>
+<table class="gran">
+  <thead>
+    <tr><th>Option</th><th>What it means</th><th>Pros</th><th>Cons</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>One agent per section invocation</td>
+      <td>Wizard "AI-draft Section C" → one <code>SectionDrafterAgent</code>. CO drives order.</td>
+      <td>Matches current UI · CO control per-section · simplest contract · interruptible HITL per section</td>
+      <td>No cross-section consistency check inside drafting · no parallelism without external coordinator</td>
+    </tr>
+    <tr class="recommend">
+      <td><strong>Per-section default + optional batch path (this update)</strong></td>
+      <td>Wizard keeps per-section button; adds "Draft all AI sections" button that invokes <code>DraftingCoordinatorAgent</code>. Coordinator fans out via <code>Send</code> to 4 drafters in parallel, aggregates, hands off to critic.</td>
+      <td>Preserves CO control · enables parallelism + cross-section critic for batch users · single-section unchanged (additive)</td>
+      <td>Two endpoints to maintain · coordinator graph adds complexity (~2 implementer-days)</td>
+    </tr>
+    <tr>
+      <td>One agent per whole solicitation</td>
+      <td>One mega-agent drafts A–M in one run. Coordinator becomes internal step rather than separate agent.</td>
+      <td>Strongest cross-section consistency · single audit row per solicitation</td>
+      <td>Long-running (~30s wall clock) · CO can't preview one section at a time · interrupt-and-resume becomes per-solicitation, blunting the M1 UX · doesn't match current wizard</td>
+    </tr>
+    <tr>
+      <td>One agent per FAR UCF Part (I–IV)</td>
+      <td>Part I agent drafts A–H; Part II = I clauses (retrieved); Part III = J; Part IV = K + L + M.</td>
+      <td>Maps to government doc structure familiar to COs</td>
+      <td>Parts mix drafted/human/retrieved sections inconsistently (Part I has 2 drafted of 8 sections; Part IV has 2 drafted of 3) · per-Part agents would either be mostly-empty or skip most of "their" sections · no clear fan-out unit</td>
+    </tr>
+    <tr>
+      <td>One agent per claim / per FAR clause</td>
+      <td>Fine-grained agent per cited claim within a section draft.</td>
+      <td>Maximum traceability per claim</td>
+      <td>Cost explodes (one Sonnet call per claim × ~10 claims/section × 4 sections = 40+ Sonnet calls per solicitation) · the structured <code>claim_chunk_map</code> + <code>validate_citations</code> already give us per-claim traceability without the cost</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<!-- ================== 7. COSTS + AGGREGATION ================== -->
+<!-- ============================================================ -->
+<h2 id="costs">7. Costs &amp; aggregation summary</h2>
+<div class="grid">
+
+<div>
+
+  <h4>Aggregation points</h4>
+  <ul style="font-size: 13px; margin-top: 4px;">
+    <li><strong>Inside Coordinator graph</strong> (post <code>Send</code> fan-in): collect N <code>FinalDraftSection</code> from drafter subagents into <code>SolicitationDraftBundle</code>. Short-circuit on any <code>outcome="interrupted"</code> — return <code>BatchInterrupted</code> with all pending run_ids so wizard surfaces all CO decisions at once.</li>
+    <li><strong>After ConsistencyCriticAgent</strong>: attach <code>ConsistencyReport</code> to bundle. Wizard Step 12 renders warnings inline. Bundle then ready for Step 13 publish-gate.</li>
+    <li><strong>NOT inside individual SectionDrafterAgent</strong>: single section, no fan-in.</li>
+  </ul>
+
+  <h4>Critic pass invocation rules</h4>
+  <ul style="font-size: 13px; margin-top: 4px;">
+    <li><strong>Always runs inside batch path</strong> — Coordinator handles the handoff after aggregate.</li>
+    <li><strong>Runs at wizard Step 12 (Review)</strong> even when sections were drafted one-at-a-time via the single-section path. Wizard POSTs <code>/draft-solicitation/critic</code> with the current sections bundle.</li>
+    <li><strong>Phase 1 = warn-only</strong>. <code>overall_severity</code> rendered, never blocks Step 13 submit. Hard-fail surface = Phase 1.5.</li>
+    <li><strong>No iterative reflection loop</strong> — single pass. If critic finds a warn, the CO edits + resubmits; not the agent.</li>
+  </ul>
+
+  <h4>Parallelism summary</h4>
+  <ul style="font-size: 13px; margin-top: 4px;">
+    <li>Drafter subagents run in parallel via <code>langgraph.types.Send</code> — wall-clock = slowest drafter (~6–10s with Sonnet), not 4× sequential.</li>
+    <li>HITL interrupt in one drafter does <strong>not</strong> block siblings — each writes to its own <code>thread_id</code>; coordinator collects whatever returns + reports interrupts on the slow ones.</li>
+    <li>Critic runs after aggregate, not in parallel with drafters — needs the bundle as input.</li>
+  </ul>
+
+</div>
+
+<div>
+  <h4>Cost vs. existing wizard usage (Phase 1)</h4>
+  <table class="costs" style="margin: 8px 0 16px;">
+    <thead><tr><th>Workflow</th><th class="num">~USD</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>1× single section draft</td><td class="num">$0.05</td><td>existing wizard path</td></tr>
+      <tr><td>4× single sections one-at-a-time</td><td class="num">$0.20</td><td>4 sequential calls, 4 audit rows</td></tr>
+      <tr><td>1× batch (4 sections + critic)</td><td class="num">$0.22</td><td>parallel; 1 critic call adds $0.015 over the 4× one-at-a-time cost</td></tr>
+      <tr><td>1× critic-only at Step 12</td><td class="num">$0.015</td><td>warn-only pass on user-typed + AI-drafted sections</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Backwards compat</h4>
+  <ul style="font-size: 13px;">
+    <li>Single-section endpoint <code>POST /draft-solicitation/section</code> unchanged from ADR-0012.</li>
+    <li>NEW endpoints: <code>/batch</code> + <code>/critic</code>.</li>
+    <li>Wizard's per-section button continues to work without coordinator.</li>
+    <li>Audit row schema unchanged for individual drafts; batch + critic emit their own rows joined on <code>run_id</code>.</li>
+  </ul>
+</div>
+
+</div>
 
 <footer>
   Diagram is informational. Source of truth = <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a>.
-  Implementation spec = <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> (alongside this file).
+  Implementation spec = <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a>.
+  Multi-agent topology extension (Coordinator + Critic) requires ADR + spec update — not yet committed.
+  v1.0 patterns sourced from <a href="https://docs.langchain.com/oss/python/langchain/multi-agent">docs.langchain.com/oss/python/langchain/multi-agent</a> (Subagents, Router, Handoffs, Skills, Custom Workflow).
   Generated 2026-06-10 · acquire-gov · Phase 1 M1.
 </footer>
 

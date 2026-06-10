@@ -1122,4 +1122,575 @@ curl -X POST http://localhost:8000/draft-solicitation/section/resume \
 
 ---
 
-End of spec. Implementer entry point: PR A1.
+## 18. Multi-agent extension (ADR-0013 — Coordinator + Critic)
+
+ADR-0013 layers on top of ADR-0012 and this spec's §1–§17. Implementation lands as a **separate rollout** after the §15 PRs (A1..F1) complete. This §18 owns what each extension PR builds; §15 PRs are unaffected.
+
+### 18.1 Module-layout additions
+
+```
+app/
+├── api/
+│   ├── batch.py                       # NEW — POST /draft-solicitation/batch handler
+│   ├── batch_resume.py                # NEW — POST /draft-solicitation/batch/resume handler
+│   └── critic.py                      # NEW — POST /draft-solicitation/critic handler
+├── agents/
+│   ├── coordinator/
+│   │   ├── __init__.py
+│   │   ├── graph.py                   # NEW — DraftingCoordinatorAgent StateGraph (checkpointed)
+│   │   └── nodes.py                   # plan, draft_one_section (catches GraphInterrupt), aggregate, critic
+│   ├── critic/
+│   │   ├── __init__.py
+│   │   ├── builder.py                 # build_consistency_critic_agent()
+│   │   ├── prompts.py                 # CONSISTENCY_CRITIC_SYSTEM_PROMPT
+│   │   └── tools/
+│   │       ├── __init__.py
+│   │       ├── lm_alignment.py        # check_l_m_alignment (LLM tool)
+│   │       ├── set_aside.py           # check_set_aside_consistency (programmatic)
+│   │       └── clin_coverage.py       # check_clin_coverage (programmatic)
+│   └── schemas.py                     # EXTENDED with ConsistencyReport + LM/SetAside/CLIN sub-reports + SolicitationDraftBundle
+```
+
+No changes to the ADR-0012 tool tree; coordinator's `draft_one_section` node reuses `build_section_drafter_agent()` from §7.
+
+### 18.2 New endpoint contracts
+
+**`POST /draft-solicitation/batch`**
+
+Request: `BatchDraftRequest` (ADR-0013 D6.1).
+
+Response: `SolicitationDraftBundle`.
+
+| Outcome | Status | Body |
+|---|---|---|
+| `overall_outcome="batch_completed"` | 200 | `SolicitationDraftBundle` with `consistency_report` populated and `pending_interrupts=[]` |
+| `overall_outcome="batch_interrupted"` | 200 | `SolicitationDraftBundle` with `consistency_report=None`, `pending_interrupts` populated (one per interrupted section) |
+| Coordinator graph error | 500 | `{"detail": "coordinator_failure"}` |
+| Any tenant mismatch / guardrail fail in a child drafter | propagated from child | child's status code |
+
+**`POST /draft-solicitation/batch/resume`**  (NEW per ADR-0013 D6.1)
+
+Request: `BatchResumeRequest`:
+
+```python
+class BatchPerSectionDecision(BaseModel):
+    section_id: Literal["C","H","L","M"]
+    decision: Literal["approve", "edit", "reject"]
+    edited_args: dict | None = None
+    reason: str | None = Field(default=None, max_length=500)
+
+class BatchResumeRequest(BaseModel):
+    batch_run_id: str
+    decisions: list[BatchPerSectionDecision]
+```
+
+Response: `SolicitationDraftBundle` (same shape as `/batch`). The handler reads the coordinator graph's checkpoint via `MongoDBSaver`, constructs the `Command(resume=...)` payload from the per-section decisions, and resumes the parent graph from the interrupted node. Children that already completed in the original batch are preserved in state — no re-drafting, no re-spend.
+
+Status codes:
+
+| Outcome | Status | Body |
+|---|---|---|
+| Resume completed, all sections finalized | 200 | `SolicitationDraftBundle` with `overall_outcome="batch_completed"` + `consistency_report` populated |
+| Resume yielded a NEW interrupt (rare — only if `decision="edit"` produces another hitl band) | 200 | `SolicitationDraftBundle` with `overall_outcome="batch_interrupted"` + fresh `pending_interrupts` |
+| `batch_run_id` not in checkpoint | 404 | `{"detail": "batch_run_not_found"}` |
+| `X-Tenant-ID` mismatch with checkpoint | 403 | `{"detail": "tenant_mismatch"}` |
+| Checkpoint exists but not in interrupted state (already terminal) | 409 | `{"detail": "batch_run_not_paused"}` |
+| Decision count ≠ pending interrupt count | 422 | `{"detail": "decision_count_mismatch"}` |
+| `decision="edit"` but `edited_args=None` for any decision | 422 | `{"detail": "edited_args_required"}` |
+
+**`POST /draft-solicitation/critic`**
+
+Request: `CriticRequest` (ADR-0013 D6.2).
+
+Response: `ConsistencyReport`. Status 200 on success; 500 on critic-agent error.
+
+The single-section `POST /draft-solicitation/section/resume` from §4.2 is unchanged — it remains the resume surface for runs spawned by the single-section endpoint. The batch-resume surface lives on `/batch/resume` only.
+
+### 18.3 Coordinator implementation (`app/agents/coordinator/graph.py`)
+
+The coordinator graph is **checkpointed** by the same `MongoDBSaver` singleton ADR-0012 D4 wired (see §10). Coordinator thread_id = `{solicitation_id}:batch:{request_id}`. This is the load-bearing decision (ADR-0013 D1) that lets child interrupts propagate to a resumable parent state.
+
+```python
+import operator
+from functools import lru_cache
+from typing import Annotated, TypedDict
+
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import Send, Command
+from langgraph.errors import GraphInterrupt
+
+from app import config
+from app.agents.schemas import (
+    FinalDraftSection, SolicitationDraftBundle, ConsistencyReport, PendingToolCall
+)
+from app.agents.builder import build_section_drafter_agent
+from app.agents.checkpointer import build_mongodb_saver
+from app.agents.critic.builder import build_consistency_critic_agent
+
+
+AI_DRAFTABLE = {"C", "H", "L", "M"}
+
+
+class CoordinatorState(TypedDict):
+    solicitation_id: str
+    tenant_id: str
+    request_id: str
+    batch_run_id: str
+    naics: str | None
+    set_aside: str | None
+    user_constraints_by_section: dict[str, str]
+    provenances: dict[str, str | None]
+    sections_to_draft: list[str]
+    section_results: Annotated[list[FinalDraftSection], operator.add]
+    bundle: SolicitationDraftBundle | None
+    skip_critic: bool
+
+
+def _plan(state: CoordinatorState) -> dict:
+    targets = sorted(
+        s for s in AI_DRAFTABLE
+        if state["provenances"].get(s) is None
+    )
+    if len(targets) > config.MAX_BATCH_FAN_OUT:
+        # ADR-0013 D7.1 hard cap — never reachable in Phase 1 (|AI_DRAFTABLE| == 4 == default cap)
+        # but lights up if Phase 1.5 adds AI-draftable sections without bumping the cap.
+        raise ValueError(f"batch_fan_out_exceeded: {len(targets)} > {config.MAX_BATCH_FAN_OUT}")
+    return {"sections_to_draft": targets}
+
+
+def _fan_out(state: CoordinatorState) -> list[Send]:
+    return [
+        Send("draft_one_section", {
+            "section_id": s,
+            "solicitation_id": state["solicitation_id"],
+            "tenant_id": state["tenant_id"],
+            "request_id": state["request_id"],
+            "batch_run_id": state["batch_run_id"],
+            "naics": state.get("naics"),
+            "set_aside": state.get("set_aside"),
+            "user_constraints": state["user_constraints_by_section"].get(s),
+        })
+        for s in state["sections_to_draft"]
+    ]
+
+
+def _draft_one_section(payload: dict) -> dict:
+    """Invoke a SectionDrafterAgent. On HumanInTheLoopMiddleware interrupt,
+    catch GraphInterrupt and synthesize a FinalDraftSection(outcome="interrupted")
+    so the parent aggregate sees a consistent type. The parent graph's checkpointer
+    already captured the inner agent's state; resume reaches the inner thread_id
+    via Command(resume=...) directed at the parent."""
+    agent = build_section_drafter_agent()
+    thread_id = f"{payload['solicitation_id']}:{payload['section_id']}:{payload['request_id']}"
+    cfg = {
+        "configurable": {
+            "thread_id": thread_id,
+            "tenant_id": payload["tenant_id"],
+        },
+        "tags": ["m1", "batch", f"section-{payload['section_id']}"],
+        "metadata": {
+            "request_id": payload["request_id"],
+            "solicitation_id": payload["solicitation_id"],
+            "section_id": payload["section_id"],
+            "tenant_id": payload["tenant_id"],
+            "batch_run_id": payload["batch_run_id"],
+        },
+    }
+    try:
+        result = agent.invoke({"messages": [_user_prompt_for_section(payload)]}, config=cfg)
+        final: FinalDraftSection = result["structured_response"]
+    except GraphInterrupt as gi:
+        # Inner agent paused on HITL middleware; synthesize the interrupted shape so
+        # parent aggregate's typing holds. The interrupt payload exposes the pending
+        # tool call args; the inner checkpoint persists the full agent state.
+        final = FinalDraftSection(
+            outcome="interrupted",
+            section_text=None,
+            section_id=payload["section_id"],
+            citations=[],
+            gate_decision="hitl",   # only hitl band interrupts per ADR-0012 D6
+            requires_human_review=True,
+            rerank_top_score=gi.value.get("rerank_top_score") if isinstance(gi.value, dict) else None,
+            request_id=payload["request_id"],
+            run_id=thread_id,
+            pending_tool_call=PendingToolCall(
+                tool_name="compute_gate_decision",
+                args=gi.value if isinstance(gi.value, dict) else {},
+                reason="rerank_top_score in hitl band — CO review required",
+            ),
+        )
+    return {"section_results": [final]}
+
+
+def _aggregate(state: CoordinatorState) -> dict:
+    interrupted = [r for r in state["section_results"] if r.outcome == "interrupted"]
+    bundle = SolicitationDraftBundle(
+        solicitation_id=state["solicitation_id"],
+        sections=state["section_results"],
+        overall_outcome="batch_interrupted" if interrupted else "batch_completed",
+        consistency_report=None,
+        pending_interrupts=[r.pending_tool_call for r in interrupted if r.pending_tool_call],
+        request_id=state["request_id"],
+        batch_run_id=state["batch_run_id"],
+    )
+    return {"bundle": bundle, "skip_critic": bool(interrupted)}
+
+
+def _route_after_aggregate(state: CoordinatorState):
+    return END if state["skip_critic"] else "critic"
+
+
+def _critic(state: CoordinatorState) -> dict:
+    """Invoke ConsistencyCriticAgent. Construct a NEW SolicitationDraftBundle
+    with consistency_report populated — never mutate state['bundle'] in place
+    (LangGraph state mutation is fragile under retry/replay)."""
+    critic_agent = build_consistency_critic_agent()
+    sections_map = {r.section_id: r.section_text for r in state["section_results"] if r.section_text}
+    cfg = {
+        "tags": ["m1", "consistency-critic", "batch-driven"],
+        "metadata": {
+            "request_id": state["request_id"],
+            "solicitation_id": state["solicitation_id"],
+            "batch_run_id": state["batch_run_id"],
+        },
+    }
+    result = critic_agent.invoke(
+        {"messages": [{"role": "user", "content": _critic_user_prompt(sections_map, state.get("set_aside"))}]},
+        config=cfg,
+    )
+    report: ConsistencyReport = result["structured_response"]
+    prior = state["bundle"]
+    return {
+        "bundle": SolicitationDraftBundle(
+            solicitation_id=prior.solicitation_id,
+            sections=prior.sections,
+            overall_outcome=prior.overall_outcome,
+            consistency_report=report,
+            pending_interrupts=prior.pending_interrupts,
+            request_id=prior.request_id,
+            batch_run_id=prior.batch_run_id,
+        ),
+    }
+
+
+@lru_cache(maxsize=1)
+def build_coordinator_graph():
+    g = StateGraph(CoordinatorState)
+    g.add_node("plan", _plan)
+    g.add_node("draft_one_section", _draft_one_section)
+    g.add_node("aggregate", _aggregate)
+    g.add_node("critic", _critic)
+
+    g.add_edge(START, "plan")
+    g.add_conditional_edges("plan", _fan_out, ["draft_one_section"])
+    g.add_edge("draft_one_section", "aggregate")
+    g.add_conditional_edges("aggregate", _route_after_aggregate, {"critic": "critic", END: END})
+    g.add_edge("critic", END)
+
+    # Checkpointer per ADR-0013 D1 — shares the MongoDBSaver singleton from ADR-0012 D4.
+    return g.compile(checkpointer=build_mongodb_saver())
+```
+
+Handler at `app/api/batch.py` calls `build_coordinator_graph().invoke(initial_state, config={"configurable": {"thread_id": batch_run_id, "tenant_id": tenant_id}, ...})`. The compiled graph is cached via `lru_cache`; `MongoDBSaver` is the shared ADR-0012 D4 singleton. Resume path at `app/api/batch_resume.py` reads the checkpoint, builds a `Command(resume={"decisions": [...]})` per `BatchResumeRequest`, and calls `graph.invoke(Command(...), config={"configurable": {"thread_id": batch_run_id, ...}})`.
+
+### 18.4 Critic implementation (`app/agents/critic/builder.py`)
+
+```python
+from langchain.agents import create_agent
+from langchain_aws import ChatBedrockConverse
+
+from app import config
+from app.agents.schemas import ConsistencyReport
+from app.agents.critic.prompts import CONSISTENCY_CRITIC_SYSTEM_PROMPT
+from app.agents.critic.tools import (
+    check_l_m_alignment,
+    check_set_aside_consistency,
+    check_clin_coverage,
+)
+
+
+def build_consistency_critic_agent():
+    return create_agent(
+        model=ChatBedrockConverse(model=config.BEDROCK_CRITIC_MODEL),
+        tools=[
+            check_l_m_alignment,
+            check_set_aside_consistency,
+            check_clin_coverage,
+        ],
+        system_prompt=CONSISTENCY_CRITIC_SYSTEM_PROMPT,
+        response_format=ConsistencyReport,
+        name="consistency_critic",
+        # NO middleware — critic does not interrupt; warn-only Phase 1
+        # NO checkpointer — critic runs are short, no multi-day pause needed
+    )
+```
+
+### 18.5 Critic tools
+
+**`check_l_m_alignment`** — single LLM call. Tool body invokes a chat model directly with `with_structured_output(LMAlignmentReport)` (same outside-of-agents pattern as `extract_section_requirements` in §8.3):
+
+```python
+@tool
+def check_l_m_alignment(section_l: str | None, section_m: str | None) -> LMAlignmentReport:
+    """Check FAR 15.204-5 alignment: every L instruction maps to an M factor."""
+    if not section_l or not section_m:
+        return LMAlignmentReport(
+            mismatches=[LMMismatch(type="l_without_m" if not section_m else "m_without_l",
+                                   l_instruction=None, m_factor=None, severity="info",
+                                   rationale="one section missing — skipping semantic check")],
+            overall_severity="info", model=config.BEDROCK_CRITIC_MODEL,
+            input_tokens=0, output_tokens=0,
+        )
+    chat = ChatBedrockConverse(model=config.BEDROCK_CRITIC_MODEL).with_structured_output(LMAlignmentReport)
+    return chat.invoke(_lm_alignment_prompt(section_l, section_m))
+```
+
+**`check_set_aside_consistency`** — programmatic lookup. A static dict maps each set-aside to the FAR clauses Section K must include (e.g., `8(a)` requires `52.219-18`; `SDVOSB` requires `52.219-27`; etc.). Tool walks both lists, emits `SetAsideMismatch` per missing/extra clause:
+
+```python
+SET_ASIDE_REQUIRED_CLAUSES: dict[str, frozenset[str]] = {
+    "8(a)": frozenset({"52.219-18"}),
+    "SDVOSB": frozenset({"52.219-27"}),
+    "WOSB": frozenset({"52.219-30"}),
+    "HUBZone": frozenset({"52.219-3"}),
+    "total_small_business": frozenset({"52.219-6"}),
+}
+
+
+@tool
+def check_set_aside_consistency(set_aside: str | None, section_k_text: str | None) -> SetAsideConsistencyReport:
+    """Validate Section K reps match Section A set-aside designation."""
+    if not set_aside or set_aside not in SET_ASIDE_REQUIRED_CLAUSES:
+        return SetAsideConsistencyReport(mismatches=[], overall_severity="info")
+    required = SET_ASIDE_REQUIRED_CLAUSES[set_aside]
+    actual = _extract_far_clauses_from_section_k(section_k_text or "")
+    missing = sorted(required - actual)
+    extra = sorted(actual - required) if config.SET_ASIDE_STRICT_EXTRA else []
+    sev = "warn" if missing else "info"
+    return SetAsideConsistencyReport(
+        mismatches=[SetAsideMismatch(set_aside=set_aside, expected_reps=sorted(required),
+                                     actual_reps=sorted(actual), missing=missing, extra=extra, severity=sev)],
+        overall_severity=sev,
+    )
+```
+
+**`check_clin_coverage`** — programmatic. Extracts CLIN identifiers from Section B (pattern `\b\d{4}\b` near the word "CLIN"), then checks each appears in Section C (SOW), Section F (delivery schedule), and Section L (offeror pricing instruction). Missing-section-B handling parallels the other two critic tools — emits an info-severity skip rather than silently returning empty gaps, so the wizard's Step 12 surface can distinguish "no CLIN issues" from "couldn't check":
+
+```python
+@tool
+def check_clin_coverage(section_b: str | None, section_c: str | None,
+                       section_f: str | None, section_l: str | None) -> CLINCoverageReport:
+    """Cross-section CLIN reference check (Section B ↔ C ↔ F ↔ L).
+
+    Gap-level severity is preserved faithfully (warn for 1 missing section,
+    fail for 2+) so Phase 1.5 can flip the aggregation clamp. Phase 1 clamps
+    overall to warn at most — D5 warn-only."""
+    if section_b is None:
+        return CLINCoverageReport(
+            gaps=[CLINGap(clin_id="<n/a>", missing_in=[], severity="info")],
+            overall_severity="info",
+        )
+    clins = _extract_clins(section_b)
+    gaps: list[CLINGap] = []
+    for clin in clins:
+        missing_in: list[Literal["C", "F", "L"]] = []
+        if not _references_clin(section_c, clin): missing_in.append("C")
+        if not _references_clin(section_f, clin): missing_in.append("F")
+        if not _references_clin(section_l, clin): missing_in.append("L")
+        if missing_in:
+            sev = "warn" if len(missing_in) == 1 else "fail"
+            gaps.append(CLINGap(clin_id=clin, missing_in=missing_in, severity=sev))
+    if not gaps:
+        return CLINCoverageReport(gaps=[], overall_severity="info")
+    # D5 Phase 1 clamp: aggregation never exceeds warn even if a gap is fail.
+    return CLINCoverageReport(gaps=gaps, overall_severity="warn")
+```
+
+Gap-level severity remains `warn`/`fail` per-row so Phase 1.5 can flip the aggregation clamp without re-running the tool. Unit tests in §18.8 assert both gap-level fidelity AND the Phase-1 overall clamp.
+
+### 18.6 Config additions (extending §6)
+
+```python
+# ── Critic model (D4) ──────────────────────────────────────────────────────
+BEDROCK_CRITIC_MODEL = _env("BEDROCK_CRITIC_MODEL", "amazon.nova-lite-v1:0")
+SET_ASIDE_STRICT_EXTRA = _env_bool("SET_ASIDE_STRICT_EXTRA", False)
+# True → extra clauses in Section K (beyond what the set-aside requires) raise warn.
+# False (default Phase 1) → extras are info-only. Avoids false positives during
+# corpus expansion when CO templates legitimately include extra reps.
+
+# ── Coordinator (D1 + D7.1) ────────────────────────────────────────────────
+MAX_BATCH_FAN_OUT = _env_int("MAX_BATCH_FAN_OUT", 4)
+# Hard cap on coordinator fan-out per batch invocation (ADR-0013 D7.1).
+# Defense-in-depth knob; default matches |AI_DRAFTABLE| in Phase 1.
+```
+
+### 18.6.1 Slowapi multi-cost rate-limit (ADR-0013 D7.1)
+
+The `/batch` handler counts the rate-limit hit by the number of sections about to be drafted (N), not 1:
+
+```python
+# app/api/batch.py
+from slowapi import Limiter
+from app.api.draft import limiter   # reuses the per-tenant limiter from ADR-0012
+
+@router.post("/batch")
+@limiter.limit("30/minute;1000/day")
+async def post_batch(request: Request, body: BatchDraftRequest, ...):
+    targets = sorted(s for s in AI_DRAFTABLE if body.provenances.get(s) is None)
+    n = len(targets)
+    if n == 0:
+        return SolicitationDraftBundle(...empty...)
+    # Multi-cost: consume N tokens from the per-tenant budget. The first call to
+    # limiter.limit already consumed 1; consume N-1 more to total N. slowapi's
+    # storage-level hit() lets us add cost; if no remaining budget, raise 429.
+    if n > 1:
+        limiter._storage.hit(_tenant_key(request), cost=n - 1)
+    # ... proceed with coordinator invocation ...
+```
+
+The audit row records `batch.rate_limit_cost = n`. Single-section endpoint unchanged (cost 1). A malicious caller cannot now bypass the per-tenant Sonnet/Nova spend cap by funneling through `/batch`.
+
+### 18.7 Audit row additions (extending §11)
+
+Two new `action` values:
+
+```python
+# batch_coordinator_run — one row per batch invocation
+{
+    ...standard ADR-0008 D3 fields...,
+    "action": "batch_coordinator_run",
+    "run_id": "<batch_run_id>",           # = "{sol_id}:batch:{request_id}"
+    "actor": { ... },
+    "batch": {
+        "sections_planned": ["C", "H", "L", "M"],
+        "sections_drafted": ["C", "H"],   # subset that returned outcome="draft_returned"
+        "sections_interrupted": ["L"],
+        "sections_withheld": ["M"],
+    },
+    "outcome": "batch_completed" | "batch_interrupted",
+}
+
+# consistency_critic — one row per critic invocation (batch-driven or Step 12 standalone)
+{
+    ...standard ADR-0008 D3 fields...,
+    "action": "consistency_critic",
+    "run_id": "<critic_run_id>",          # = "{sol_id}:critic:{request_id}"
+    "actor": { ... },
+    "batch_run_id": "<parent batch_run_id or null if standalone>",
+    "consistency_report_hash": "<sha256 of the ConsistencyReport JSON>",
+    "overall_severity": "info" | "warn" | "fail",
+    "blocks_submit": false,               # Phase 1 always
+}
+```
+
+Both rows use `schema_version: 1` (same as existing M2 + ADR-0012 rows).
+
+### 18.8 Tests + eval gate additions (extending §13)
+
+**Per-tool unit tests** (`tests/agents/coordinator/`, `tests/agents/critic/`):
+
+- `test_coordinator_plan.py` — `_plan` filters provenance correctly; non-AI sections (`A`, `B`, ...) never enter `sections_to_draft`.
+- `test_coordinator_fan_out.py` — `_fan_out` emits one `Send` per planned section with the correct payload shape.
+- `test_coordinator_aggregate.py` — any interrupted child → `skip_critic=True`, all interrupts collected.
+- `test_coordinator_aggregate_happy.py` — all `draft_returned` → critic runs, report populated.
+- `test_critic_lm_alignment.py` — mocks the chat model with malformed structured output → tool propagates `ValidationError` (no fallback — critic is single-pass).
+- `test_critic_set_aside.py` — table-driven over the 5 known set-asides; missing required clause → warn; extra (with SET_ASIDE_STRICT_EXTRA=False) → info.
+- `test_critic_clin_coverage.py` — table-driven over multi-CLIN solicitations; CLIN missing in 1 of 3 → warn; CLIN missing in 2+ → fail at gap level (still mapped to overall warn per D5).
+
+**Integration tests** (`tests/api/test_batch.py`, `tests/api/test_critic.py`):
+
+- `test_batch_all_pass.py` — wire 4 mock drafters returning `outcome="draft_returned"` → bundle completes with `overall_outcome="batch_completed"`, `consistency_report` populated.
+- `test_batch_one_interrupted.py` — 1 of 4 drafters interrupts → bundle `overall_outcome="batch_interrupted"`, `pending_interrupts` length 1, critic NOT invoked.
+- `test_batch_skips_owned_sections.py` — `provenances={"C": "human", "L": "ai-edited"}` → coordinator spawns only H + M.
+- `test_critic_standalone.py` — POST `/critic` with hand-built sections map → returns `ConsistencyReport` without running drafters.
+- `test_batch_tenant_isolation.py` (req_rag_3 extension) — child drafters receive `tenant_id` via `Send` payload + `RunnableConfig`; no path to leak across tenants.
+
+**Eval gate additions** (extending §13.2) — **informational in Phase 1, NOT CI-gating**:
+
+| Metric | Phase 1 threshold | Phase 1.5 target | Computation |
+|---|---|---|---|
+| `critic_l_m_alignment_recall` | record-only | `>= 0.85` | Run critic over a fixture set of 20 synthetic solicitations with known L↔M misalignments injected. |
+| `critic_set_aside_recall` | record-only | `= 1.00` | Same fixture set with set-aside / Section K mismatches. Programmatic; recall target trivially achievable but must be measured. |
+| `critic_clin_recall` | record-only | `= 1.00` | Same fixture set with CLIN coverage gaps. Programmatic. |
+| `critic_false_positive_rate` | record-only | `< 0.10` | 20 known-good solicitations; report % with `overall_severity >= warn`. |
+
+**Why record-only in Phase 1.** ADR-0013 D5 ships the critic as warn-only specifically because we have no baseline for critic precision. Imposing a `>= 0.85` recall floor in CI before we measure precision contradicts the warn-only rationale. PR J2 lands the metric collection + reporting; PR after first baseline measurement flips the thresholds and gates CI. Until then `rag-eval-gate.yml` records the values into the run summary but does not fail on them.
+
+### 18.9 PR rollout (extension after §15 F1)
+
+| PR | Branch | What lands | Gates |
+|---|---|---|---|
+| G1 | `cj/m1-multi-schemas` | `ConsistencyReport` + sub-reports + `SolicitationDraftBundle` in `app/agents/schemas.py` + tests | unit tests green |
+| G2 | `cj/m1-multi-config` | `BEDROCK_CRITIC_MODEL` + `SET_ASIDE_STRICT_EXTRA` env knobs + `.env.example` update | grep-test new env vars listed |
+| H1 | `cj/m1-multi-critic-tools` | three critic tools (`check_l_m_alignment`, `check_set_aside_consistency`, `check_clin_coverage`) + unit tests | unit tests green; programmatic checks table-driven |
+| H2 | `cj/m1-multi-critic-builder` | `app/agents/critic/builder.py` + `prompts.py` + integration test that invokes the critic agent end-to-end with stubbed LLM | builder integration test green |
+| H3 | `cj/m1-multi-critic-endpoint` | `app/api/critic.py` + `/critic` route mount in `main.py` + e2e test with a hand-built bundle | e2e test green |
+| I1 | `cj/m1-multi-coord-graph` | `app/agents/coordinator/graph.py` (checkpointed) + `nodes.py` + unit tests for each node, including GraphInterrupt catch | unit tests green |
+| I2 | `cj/m1-multi-coord-endpoint` | `app/api/batch.py` + slowapi multi-cost wiring + `/batch` route mount + integration test using 4 mocked drafters | integration test green; `req_rag_3` still passing |
+| I3 | `cj/m1-multi-coord-resume` | `app/api/batch_resume.py` + `/batch/resume` route mount + integration test that interrupts one child then resumes all-approve and end-to-end completes | integration test green; audit row `batch_resume` written |
+| J1 | `cj/m1-multi-audit` | `audit.py` mods for `batch_coordinator_run` + `consistency_critic` rows + tests | existing audit tests green; new tests for both rows |
+| J2 | `cj/m1-multi-eval-gate` | four new eval-gate metrics (§18.8) + workflow update | eval-gate green on the fixture set |
+| K1 | `cj/m1-multi-frontend` | wizard "Draft all AI sections" button + Step 12 critic invocation + warning render | `ng build` clean; bundle size baseline does not regress > 15 KB |
+
+Total: 11 extension PRs (G1, G2, H1–H3, I1, I2, I3, J1, J2, K1). Critical path: G1 → H1 → H2 → H3 (critic-only path works first) → I1 → I2 → I3 (coordinator + resume) → J1 → J2 → K1. G2 and J1 parallel-able with H/I.
+
+### 18.10 Verification one-liners (after K1)
+
+```bash
+# Backend
+python -m pytest services/ai-orchestrator/tests/agents/coordinator/ -v
+python -m pytest services/ai-orchestrator/tests/agents/critic/ -v
+python -m pytest services/ai-orchestrator/tests/api/test_batch.py services/ai-orchestrator/tests/api/test_critic.py -v
+
+# Smoke — batch
+curl -X POST http://localhost:8000/draft-solicitation/batch \
+  -H "X-Tenant-ID: agency-test" -H "X-Request-ID: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "solicitation_id": "sol-001",
+    "naics": "541512",
+    "set_aside": "SDVOSB",
+    "user_constraints_by_section": {
+      "C": "quarterly deliverable cadence",
+      "L": "max 25 page proposal"
+    },
+    "provenances": {"C": null, "H": null, "L": null, "M": null}
+  }'
+# Expected: 200 with overall_outcome=batch_completed (or batch_interrupted if any section hit hitl band)
+
+# Smoke — batch resume (after a /batch returned batch_interrupted)
+curl -X POST http://localhost:8000/draft-solicitation/batch/resume \
+  -H "X-Tenant-ID: agency-test" -H "X-Request-ID: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "batch_run_id": "sol-001:batch:<original-uuid>",
+    "decisions": [
+      {"section_id": "L", "decision": "approve"}
+    ]
+  }'
+# Expected: 200 with overall_outcome=batch_completed and consistency_report populated
+
+# Smoke — critic standalone
+curl -X POST http://localhost:8000/draft-solicitation/critic \
+  -H "X-Tenant-ID: agency-test" -H "X-Request-ID: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "solicitation_id": "sol-001",
+    "set_aside": "SDVOSB",
+    "sections": {"L": "Offerors shall submit ...", "M": "The Government will evaluate ...", "K": "FAR 52.219-27 ...", "B": "CLIN 0001 ...", "C": "...", "F": "..."}
+  }'
+# Expected: 200 with overall_severity ∈ {info, warn} and blocks_submit=false
+```
+
+### 18.11 Carve-outs deferred to subsequent specs / Phase 1.5
+
+- Critic hard-fail surface (`blocks_submit=True`) — Phase 1.5 after precision baseline.
+- Section J attachment validation as a fourth critic tool — depends on ADR-0012's Section J storage open item.
+- LLM-classified routing — out of scope; deterministic per D2.
+- Iterative reflection loops between drafter and critic — Phase 2 / M3.
+- Per-tenant critic model — single global config knob in Phase 1.
+- Batch resume endpoint (`/batch/resume`) — composing per-section resumes is simpler; not added.
+
+---
+
+End of spec. Implementer entry point: PR A1 (§15) for the ADR-0012 baseline, then PR G1 (§18.9) for the ADR-0013 multi-agent extension.
