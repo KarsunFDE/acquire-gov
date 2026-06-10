@@ -261,7 +261,7 @@ class ConsistencyReport(BaseModel):
 
 **The single-section endpoint is untouched.** `POST /draft-solicitation/section` keeps its M1 contract from ADR-0012 D8 verbatim. `SectionDrafterAgent` is invoked the same way; HITL interrupt + resume + abandon endpoints behave identically. The wizard's per-section "AI-draft" button continues to call the single-section endpoint with no coordinator involvement.
 
-**The 13-PR M1 rollout plan (`m1-agentic-draft-workflow.md` §15) stands.** This ADR's implementation lands as a **separate rollout** (§18 in the spec extension) after the ADR-0012 rollout completes — A1..F1 finish first, then the multi-agent extension PRs land on top. The dependency direction is one-way: ADR-0013 requires ADR-0012's SectionDrafterAgent + schemas in place; ADR-0012 does not require any of ADR-0013.
+**The 13-PR M1 rollout plan (`m1-agentic-drafting/design-reference.md` §15) stands.** This ADR's implementation lands as a **separate rollout** (§18 in the spec extension) after the ADR-0012 rollout completes — A1..F1 finish first, then the multi-agent extension PRs land on top. The dependency direction is one-way: ADR-0013 requires ADR-0012's SectionDrafterAgent + schemas in place; ADR-0012 does not require any of ADR-0013.
 
 **No schema breakage.** `FinalDraftSection` keeps its 4-value outcome enum from ADR-0012 D3. `SolicitationDraftBundle` and `ConsistencyReport` are NEW additive schemas. Existing audit readers and the wizard's section-card render do not change behavior for single-section runs.
 

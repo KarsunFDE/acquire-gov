@@ -12,7 +12,7 @@ import {
  * Admin Ingest UI — upload a corpus document to the orchestrator.
  *
  * Route: /admin/ingest (role-guarded sys_admin only — see app.routes.ts).
- * Spec: docs/specs/m2-ui-far-sections.md §10 + §10.1 error states.
+ * Spec: docs/specs/m2-grounded-retrieval/ui-far-sections.md §10 + §10.1 error states.
  *
  * Wraps IngestService.uploadDocument (POST /ingest/document, owned by
  * the corpus track C12). Tenant is derived from the active role profile;

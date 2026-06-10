@@ -8,7 +8,7 @@ Related: ADR-0003 (pilot drafting endpoint) · ADR-0004 (pilot review/remediatio
 
 ## Context
 
-M2 shipped a single-pass synchronous `POST /draft-solicitation/section` (`services/ai-orchestrator/app/api/draft.py:187-438`). One handler does retrieval → rerank → one `ChatBedrockConverse` call → citation hard-fail → audit. There is no agent, no per-step tool decomposition, no checkpointer, no Human-In-The-Loop middleware. The handoff doc (`docs/specs/m2-handoff.md` §3) explicitly lists `LangGraph create_agent`, `HumanInTheLoopMiddleware`, and `MongoDBSaver` as stubbed.
+M2 shipped a single-pass synchronous `POST /draft-solicitation/section` (`services/ai-orchestrator/app/api/draft.py:187-438`). One handler does retrieval → rerank → one `ChatBedrockConverse` call → citation hard-fail → audit. There is no agent, no per-step tool decomposition, no checkpointer, no Human-In-The-Loop middleware. The handoff doc (`docs/specs/m2-grounded-retrieval/handoff.md` §3) explicitly lists `LangGraph create_agent`, `HumanInTheLoopMiddleware`, and `MongoDBSaver` as stubbed.
 
 The PRD describes M1 drafting in capability terms (REQ-AID-1..4), not in workflow-step terms. PRD §11 leaves the gate primitive + paused-run persistence + sync-vs-streaming UX deliberately open for an ADR to close. PRD §4 forbids managed Bedrock products (Agents, Guardrails) — agentic orchestration must be hand-built. PRD §4 also rules out "AIOps / OpenTelemetry rollout, circuit breakers, resilience engineering" — this ADR's observability scope is therefore deliberately narrow: per-run trace into LangSmith (the LangChain-native tool), not a full app-side OTel rollout.
 
@@ -70,7 +70,7 @@ agent = create_agent(
 | `extract_section_requirements(user_constraints, section_id)` | A lightweight Bedrock model — initial choice `amazon.nova-lite-v1:0`, finalized in the spec | Short, structured extraction from free-form CO input. Bedrock pricing as of 2026-Q2 puts Nova Lite at $0.06/M input + $0.24/M output vs. Sonnet's $3.00/M + $15.00/M — roughly a 50× input / 60× output cost-per-token gap. Not user-visible text. |
 | `draft_section_text(section_id, evidence, requirements, related_solicitations)` | `BEDROCK_GEN_MODEL` (currently `us.anthropic.claude-sonnet-4-5-v1:0`) | This is the only step whose output reaches the CO unchanged. Cost optimization is not acceptable here; per PRD §7 "grounded or withheld" applies, and ADR-0011 D1.2 mandates `ChatBedrockConverse` with delimiter-wrapped context for prompt-injection resistance. |
 
-**No LLM judge in the per-run loop.** `app/guardrails.py::_nova_micro_classifier` is still stubbed (`m2-handoff.md` §5.3) and lives at the request edge, not inside the agent loop. Phase 1.5 wires it; this ADR does not depend on it.
+**No LLM judge in the per-run loop.** `app/guardrails.py::_nova_micro_classifier` is still stubbed (`m2-grounded-retrieval/handoff.md` §5.3) and lives at the request edge, not inside the agent loop. Phase 1.5 wires it; this ADR does not depend on it.
 
 **Cost envelope per section draft (target).** One Sonnet call for `draft_section_text` (~6k input tokens after delimiter-wrap, ~2k output) plus one Nova Lite call for `extract_section_requirements` (~500 in / 200 out, skipped when `user_constraints` is null) plus one Bedrock Rerank 1.0 call (`retrieve_far_clauses`; a second rerank for `retrieve_related_solicitations` is left out — D2 sub-decision below). Programmatic tools are free. Estimated **~$0.05 per section draft** at current pricing — well inside the M1 cost-attribution guidance in PRD §6 REQ-AID-3.
 

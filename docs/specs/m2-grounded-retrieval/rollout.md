@@ -1,15 +1,15 @@
 # M2 Grounded Retrieval — Implementation Rollout Spec
 
-**Phase 1 · Milestone M2** · Implementer entry point: [`docs/adrs/0010-rag-implementation-manifest.md`](../adrs/0010-rag-implementation-manifest.md)
+**Phase 1 · Milestone M2** · Implementer entry point: [`docs/adrs/0010-rag-implementation-manifest.md`](../../adrs/0010-rag-implementation-manifest.md)
 
 This spec decomposes the M2 (Grounded Retrieval) ADR catalog (ADR-0005..0011) into a PR-ordered execution plan with blockers, branching strategy, commit conventions, label gates, and CI gates. It is the bridge from planning (ADRs) to delivery (PRs).
 
-Companion specs (consume the endpoint + module shapes locked in `m2-rollout.md`'s execution path):
+Companion specs (consume the endpoint + module shapes locked in `m2-grounded-retrieval/rollout.md`'s execution path):
 
-- [`m2-retrieval-pipeline.md`](m2-retrieval-pipeline.md) — implementer-grade pipeline spec consolidating ADR-0005..0011 (endpoint contracts, module layout, failure modes).
-- [`m2-eval-harness.md`](m2-eval-harness.md) — RAGAS + Nova-Micro judge + programmatic checks (citation validity, cross-tenant fuzz, latency/token regression). Owns Slice D.
-- [`m2-synthetic-corpus.md`](m2-synthetic-corpus.md) — lean synthetic-solicitation corpus + admin ingest pipeline internals.
-- [`m2-ui-far-sections.md`](m2-ui-far-sections.md) — Angular FAR UCF wizard expansion + per-section provenance + HITL surfaces + admin ingest UI.
+- [`m2-grounded-retrieval/retrieval-pipeline.md`](m2-grounded-retrieval/retrieval-pipeline.md) — implementer-grade pipeline spec consolidating ADR-0005..0011 (endpoint contracts, module layout, failure modes).
+- [`m2-grounded-retrieval/eval-harness.md`](m2-grounded-retrieval/eval-harness.md) — RAGAS + Nova-Micro judge + programmatic checks (citation validity, cross-tenant fuzz, latency/token regression). Owns Slice D.
+- [`m2-grounded-retrieval/synthetic-corpus.md`](m2-grounded-retrieval/synthetic-corpus.md) — lean synthetic-solicitation corpus + admin ingest pipeline internals.
+- [`m2-grounded-retrieval/ui-far-sections.md`](m2-grounded-retrieval/ui-far-sections.md) — Angular FAR UCF wizard expansion + per-section provenance + HITL surfaces + admin ingest UI.
 
 ## Dependency graph
 
@@ -92,20 +92,20 @@ After C11 merges, **initial retrieval operation is end-to-end functional**: a qu
 
 ### Slice C extension — ingest endpoint + synthetic corpus + frontend (6 PRs, partially parallel)
 
-Defined in companion specs (`m2-synthetic-corpus.md` for C12-C14, `m2-ui-far-sections.md` for C15-C17). These extend the initial retrieval substrate with admin ingest, the lean synthetic corpus, and the wizard surface.
+Defined in companion specs (`m2-grounded-retrieval/synthetic-corpus.md` for C12-C14, `m2-grounded-retrieval/ui-far-sections.md` for C15-C17). These extend the initial retrieval substrate with admin ingest, the lean synthetic corpus, and the wizard surface.
 
 | # | Branch | Title | Type | Labels | Notes |
 |---|---|---|---|---|---|
-| **C12** | `cj/m2-c12-ingest-endpoint-and-loaders` | `POST /ingest/document` router + markdown/txt loaders | `feat(ingest):` | — | Depends on C9 (FastAPI wiring conventions). PDF + JSON-prechunked deferred to C13 to keep diff reviewable. Spec: `m2-synthetic-corpus.md` §8 + §9. |
-| **C13** | `cj/m2-c13-pdf-json-loaders` | PDF + JSON-prechunked loaders | `feat(ingest):` | — | Adds `pypdf` dep. OCR explicitly out-of-scope. Spec: `m2-synthetic-corpus.md` §9. |
-| **C14** | `cj/m2-c14-synthetic-solicitations` | Generate + check-in 10 synthetic solicitations × 2 agencies + `MANIFEST.sha256` | `feat(corpus):` | `far-snapshot-update-approved` extended to synthetic-corpus prefix | Depends on C2 (chunking) + C3 (embeddings) + C12 (ingest endpoint). Lean shape (Parts I+II only) per `m2-synthetic-corpus.md` §3. Synthetic-data CI allowlist expanded to `SOL-GSA-*` / `SOL-DOD-*`. |
-| **C15** | `cj/m2-c15-wizard-far-ucf-expand` | Solicitation wizard → 13-step FAR UCF + per-section provenance + section-card component | `feat(ui):` | — | Depends on C9 (`/draft-solicitation/section` live). Provenance state machine per `m2-ui-far-sections.md` §5. Surfaces lean-corpus L/M caveat. |
+| **C12** | `cj/m2-c12-ingest-endpoint-and-loaders` | `POST /ingest/document` router + markdown/txt loaders | `feat(ingest):` | — | Depends on C9 (FastAPI wiring conventions). PDF + JSON-prechunked deferred to C13 to keep diff reviewable. Spec: `m2-grounded-retrieval/synthetic-corpus.md` §8 + §9. |
+| **C13** | `cj/m2-c13-pdf-json-loaders` | PDF + JSON-prechunked loaders | `feat(ingest):` | — | Adds `pypdf` dep. OCR explicitly out-of-scope. Spec: `m2-grounded-retrieval/synthetic-corpus.md` §9. |
+| **C14** | `cj/m2-c14-synthetic-solicitations` | Generate + check-in 10 synthetic solicitations × 2 agencies + `MANIFEST.sha256` | `feat(corpus):` | `far-snapshot-update-approved` extended to synthetic-corpus prefix | Depends on C2 (chunking) + C3 (embeddings) + C12 (ingest endpoint). Lean shape (Parts I+II only) per `m2-grounded-retrieval/synthetic-corpus.md` §3. Synthetic-data CI allowlist expanded to `SOL-GSA-*` / `SOL-DOD-*`. |
+| **C15** | `cj/m2-c15-wizard-far-ucf-expand` | Solicitation wizard → 13-step FAR UCF + per-section provenance + section-card component | `feat(ui):` | — | Depends on C9 (`/draft-solicitation/section` live). Provenance state machine per `m2-grounded-retrieval/ui-far-sections.md` §5. Surfaces lean-corpus L/M caveat. |
 | **C16** | `cj/m2-c16-admin-ingest-ui` | Admin ingest route + `admin-ingest.component` + `ingest.service.ts` | `feat(ui):` | — | Depends on C12 (`/ingest/document` live). Role guard for admin only. |
 | **C17** | `cj/m2-c17-hard-gate-modals` | Publish + amend modal hard-gates citing FAR 5.705 / 15.206 + SSA stub for M3 | `feat(ui):` | — | Parallel-shippable (no dependency on retrieval endpoints). Pure client-side friction; backend HITL middleware arrives with M3. |
 
 ### Slice D — eval harness (3 PRs, serial; previously deferred)
 
-Defined in `m2-eval-harness.md`. Runs in parallel with C12-C17 once C14 corpus is seeded.
+Defined in `m2-grounded-retrieval/eval-harness.md`. Runs in parallel with C12-C17 once C14 corpus is seeded.
 
 | # | Branch | Title | Type | Labels | Notes |
 |---|---|---|---|---|---|
@@ -191,10 +191,10 @@ Once all four specs are merged, kick four implementation tracks in parallel (one
 
 | Agent | Owns | Spec | Tickets |
 |---|---|---|---|
-| `agent-pipeline` | Backend retrieval stack | `m2-retrieval-pipeline.md` | A1, A2, B1, B2, C1..C11 |
-| `agent-corpus` | Synthetic corpus + admin ingest endpoint internals | `m2-synthetic-corpus.md` | C12, C13, C14 |
-| `agent-ui` | Wizard expansion + admin ingest UI + hard-gate modals | `m2-ui-far-sections.md` | C15, C16, C17 |
-| `agent-eval` | RAGAS + Nova-Micro judge + programmatic checks | `m2-eval-harness.md` | D1, D2, D3 |
+| `agent-pipeline` | Backend retrieval stack | `m2-grounded-retrieval/retrieval-pipeline.md` | A1, A2, B1, B2, C1..C11 |
+| `agent-corpus` | Synthetic corpus + admin ingest endpoint internals | `m2-grounded-retrieval/synthetic-corpus.md` | C12, C13, C14 |
+| `agent-ui` | Wizard expansion + admin ingest UI + hard-gate modals | `m2-grounded-retrieval/ui-far-sections.md` | C15, C16, C17 |
+| `agent-eval` | RAGAS + Nova-Micro judge + programmatic checks | `m2-grounded-retrieval/eval-harness.md` | D1, D2, D3 |
 
 After all four merge to `main`, an **e2e coordinator** (separate agent — does NOT implement, only verifies) boots the full docker-compose stack and runs `tests/e2e/test_m2_smoke.py`:
 
@@ -212,7 +212,7 @@ Coordinator is the trust-but-verify step on top of the four parallel agents' wor
 - Phase 2 modernization items (SB→4.0.x, Java 21, circuit breaker, OTel rollout). PRD §4 OOS.
 - Other brownfield-debt item flips beyond Item 5 — those have their own scheduled weeks per `docs/brownfield-debt.md`.
 - Cloud-Atlas migration (M2-21 / Phase 1.5 trigger).
-- Implementer-grade detail — that lives in the companion specs (`m2-retrieval-pipeline.md`, `m2-synthetic-corpus.md`, `m2-ui-far-sections.md`, `m2-eval-harness.md`). This spec is the PR-ordered + dependency graph; companions are the *how*.
+- Implementer-grade detail — that lives in the companion specs (`m2-grounded-retrieval/retrieval-pipeline.md`, `m2-grounded-retrieval/synthetic-corpus.md`, `m2-grounded-retrieval/ui-far-sections.md`, `m2-grounded-retrieval/eval-harness.md`). This spec is the PR-ordered + dependency graph; companions are the *how*.
 
 ## When to update this spec
 

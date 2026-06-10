@@ -1,7 +1,7 @@
 """C12 — ``POST /ingest/document`` router tests.
 
-Endpoint contract: ``docs/specs/m2-retrieval-pipeline.md`` §4.3.
-Handler internals: ``docs/specs/m2-synthetic-corpus.md`` §8.
+Endpoint contract: ``docs/specs/m2-grounded-retrieval/retrieval-pipeline.md`` §4.3.
+Handler internals: ``docs/specs/m2-grounded-retrieval/synthetic-corpus.md`` §8.
 
 Pipeline-agent-owned modules (``app.audit``, ``app.bedrock_client``,
 ``app.retrieval``) are mocked via monkeypatch on the lazy-import seams in

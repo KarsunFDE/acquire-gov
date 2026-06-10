@@ -4,9 +4,9 @@
 
 ## 1. Purpose
 
-Implementer entry point for building Slice C of [`docs/specs/m2-rollout.md`](./m2-rollout.md). This spec consolidates the M2 ADR catalog (ADR-0005..0011) into endpoint contracts, stage-by-stage data flow, module layout, and configuration so a sub-agent can implement C1..C11 without re-opening any ADR. Quality/eval, corpus content, and UI live in sibling specs (see §13).
+Implementer entry point for building Slice C of [`docs/specs/m2-grounded-retrieval/rollout.md`](./rollout.md). This spec consolidates the M2 ADR catalog (ADR-0005..0011) into endpoint contracts, stage-by-stage data flow, module layout, and configuration so a sub-agent can implement C1..C11 without re-opening any ADR. Quality/eval, corpus content, and UI live in sibling specs (see §13).
 
-Relationship to `m2-rollout.md`: the rollout spec owns **PR ordering, branch strategy, CI gates, label workflow**. This spec owns **what each PR builds**.
+Relationship to `m2-grounded-retrieval/rollout.md`: the rollout spec owns **PR ordering, branch strategy, CI gates, label workflow**. This spec owns **what each PR builds**.
 
 ## 2. Pipeline diagram
 
@@ -151,7 +151,7 @@ Internal flow:
 
 ### 4.3 `POST /ingest/document`
 
-Shape locked here for cross-spec consistency. Full ingest pipeline (parsers, batching, dedup) belongs to `m2-synthetic-corpus.md`.
+Shape locked here for cross-spec consistency. Full ingest pipeline (parsers, batching, dedup) belongs to `m2-grounded-retrieval/synthetic-corpus.md`.
 
 ```
 Headers: X-Tenant-ID, X-Request-ID
@@ -192,7 +192,7 @@ NOT served by the orchestrator. OIG-replay endpoint owner TBD; see §13.
 
 ## 5. Module layout
 
-`services/ai-orchestrator/app/` file structure. Existing `legacy_chain.py` modernizes in Slice A PR A1 (per `m2-rollout.md`) and remains until then.
+`services/ai-orchestrator/app/` file structure. Existing `legacy_chain.py` modernizes in Slice A PR A1 (per `m2-grounded-retrieval/rollout.md`) and remains until then.
 
 | Path | Owns | Source ADRs |
 |---|---|---|
@@ -366,7 +366,7 @@ Pasted from ADR-0010 D3.
 | Chat (Sonnet 4.5) | `bedrock-runtime` | Inherited from `AWS_REGION`; cross-region inference profile `us.anthropic.claude-sonnet-4-5-...` routes through us-west-2 transparently | ADR-0003 pilot pattern |
 | Embed (Titan v2 @ 512) | `bedrock-runtime` | Inherited from `AWS_REGION` | ADR-0005 D2 |
 | Rerank (Amazon Rerank 1.0) | `bedrock-agent-runtime` | **HARD-PINNED `us-west-2`** | Not available in us-east-1 per AWS docs (ADR-0005 D2) — only Bedrock service in orchestrator that pins region |
-| Judge (Nova Micro) | `bedrock-runtime` | Inherited from `AWS_REGION` | Eval-only — see `m2-eval-harness.md` |
+| Judge (Nova Micro) | `bedrock-runtime` | Inherited from `AWS_REGION` | Eval-only — see `m2-grounded-retrieval/eval-harness.md` |
 
 The region split is the one infrastructure knob operators can misconfigure. `BEDROCK_RERANK_REGION` env var surfaces it.
 
@@ -374,7 +374,7 @@ The region split is the one infrastructure knob operators can misconfigure. `BED
 
 | Capability | Status in initial-retrieval Slice C | Source |
 |---|---|---|
-| `/retrieve` endpoint | **Real** — C9 lands the full pipeline | `m2-rollout.md` C9 |
+| `/retrieve` endpoint | **Real** — C9 lands the full pipeline | `m2-grounded-retrieval/rollout.md` C9 |
 | `/draft-solicitation/section` endpoint | **Real** — wraps retrieve + generate + verify + audit | this spec §4.2 |
 | `/ingest/document` endpoint | **Real** (call shape); content parsers in corpus spec | this spec §4.3 |
 | Retrieval (hybrid + tenant filter) | **Real** — C4, C5 | ADR-0006, ADR-0008 D2 |
@@ -384,8 +384,8 @@ The region split is the one infrastructure knob operators can misconfigure. `BED
 | Citation verify | **Real** — C7 | ADR-0011 D3 |
 | Rate limit (slowapi, in-process) | **Real** — C9 | ADR-0011 D4 |
 | Audit log v1 + roles | **Real** — C7 | ADR-0008 D3 |
-| Agent loop (`create_agent`) | **Stubbed in Phase 1 initial-retrieval** — arrives with M2-10 (deferred per `m2-rollout.md`) | ADR-0008 D4 |
-| HITL middleware (`HumanInTheLoopMiddleware`) | **Stubbed** — arrives with M2-10 (deferred); needs `issue_solicitation`/`amend_solicitation` tools to exist first | ADR-0008 D4, `m2-rollout.md` Deferred table |
+| Agent loop (`create_agent`) | **Stubbed in Phase 1 initial-retrieval** — arrives with M2-10 (deferred per `m2-grounded-retrieval/rollout.md`) | ADR-0008 D4 |
+| HITL middleware (`HumanInTheLoopMiddleware`) | **Stubbed** — arrives with M2-10 (deferred); needs `issue_solicitation`/`amend_solicitation` tools to exist first | ADR-0008 D4, `m2-grounded-retrieval/rollout.md` Deferred table |
 | MongoDBSaver checkpointer | **Stubbed** — arrives with M2-10/M2-11 (deferred) | ADR-0008 D5 |
 | Tool-arg Pydantic strict | **Stubbed** — arrives with M2-10/M2-17 (deferred); only needed when agent path exists | ADR-0011 D5 |
 
@@ -413,10 +413,10 @@ Explicit scope-out — confirms PRD §4 alignment.
 - NOT: LangSmith (SaaS or self-hosted) — never on (ADR-0009 D3).
 - NOT: Bedrock model invocation logging — never on (ADR-0009 D3).
 - NOT: Output-side PII redaction — Phase 1.5 (ADR-0011 D8; Phase 1 synthetic-only).
-- NOT: Eval harness — sibling spec `m2-eval-harness.md`.
-- NOT: Synthetic corpus content + ingest format parsers — sibling spec `m2-synthetic-corpus.md`.
-- NOT: Frontend wizard / provenance UI — sibling spec `m2-ui-far-sections.md`.
-- NOT: PR ordering, branching, CI gates — already owned by `docs/specs/m2-rollout.md`.
+- NOT: Eval harness — sibling spec `m2-grounded-retrieval/eval-harness.md`.
+- NOT: Synthetic corpus content + ingest format parsers — sibling spec `m2-grounded-retrieval/synthetic-corpus.md`.
+- NOT: Frontend wizard / provenance UI — sibling spec `m2-grounded-retrieval/ui-far-sections.md`.
+- NOT: PR ordering, branching, CI gates — already owned by `docs/specs/m2-grounded-retrieval/rollout.md`.
 - NOT: M3 (agent + HITL wiring beyond stubs noted in §12).
 
 ## 15. When to update this spec

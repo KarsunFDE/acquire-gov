@@ -1,6 +1,6 @@
 """``POST /draft-solicitation/section`` router — M2 grounded drafting.
 
-Endpoint contract: ``docs/specs/m2-retrieval-pipeline.md`` §4.2.
+Endpoint contract: ``docs/specs/m2-grounded-retrieval/retrieval-pipeline.md`` §4.2.
 Pipeline: spec §3 (all stages 1-12, including delimiter wrap §9 +
 ``ChatBedrockConverse`` generation + ``verify_citations`` hard-fail).
 ADRs: ADR-0003 (Sonnet 4.5 + langchain-aws), ADR-0011 D1.2 (delimiter

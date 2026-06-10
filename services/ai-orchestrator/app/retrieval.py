@@ -1,6 +1,6 @@
 """M2 retrieval factory + query classifier.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §5 (retrieval.py owns
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §5 (retrieval.py owns
 ``build_far_retriever`` + classifier).
 ADRs: ADR-0006 D3-D4 (per-query RRF weights), ADR-0008 D2 (tenant
 isolation factory layer).

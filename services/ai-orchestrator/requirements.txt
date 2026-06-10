@@ -47,7 +47,7 @@ python-multipart==0.0.12
 # OCR explicitly out of scope (Phase 1.5); pypdf text-extraction only.
 pypdf>=4.0,<5
 
-# Eval harness (docs/specs/m2-eval-harness.md). ragas is used only by
+# Eval harness (docs/specs/m2-grounded-retrieval/eval-harness.md). ragas is used only by
 # services/ai-orchestrator/eval/* — the production /retrieve and
 # /draft-solicitation/section paths do not import ragas. LiteLLM is the
 # RAGAS->Bedrock bridge per ADR-0009 D2 (Nova Micro judge wiring).

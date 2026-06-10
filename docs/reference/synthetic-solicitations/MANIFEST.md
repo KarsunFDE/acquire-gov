@@ -3,7 +3,7 @@
 snapshot_date: 2026-06-09
 generator: build_synthetic_solicitations.py @ uncommitted
 
-**Synthetic data only.** All program names, dollar values, and office references are fictional. NAICS codes are real public taxonomy entries. No real CO identities, no real solicitation numbers from SAM.gov. See `docs/specs/m2-synthetic-corpus.md` section 6 for the data-class contract.
+**Synthetic data only.** All program names, dollar values, and office references are fictional. NAICS codes are real public taxonomy entries. No real CO identities, no real solicitation numbers from SAM.gov. See `docs/specs/m2-grounded-retrieval/synthetic-corpus.md` section 6 for the data-class contract.
 
 **Sections L/M intentionally absent** — Parts III/IV are out of lean scope per ADR-0005 D4. Wizard AI-draft for Sections L (Instructions to Offerors) and M (Evaluation Factors) will surface lower confidence at retrieval time; Phase 1.5 corpus expansion to Parts III/IV is the unblock path.
 

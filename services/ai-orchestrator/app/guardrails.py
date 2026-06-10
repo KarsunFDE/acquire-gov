@@ -1,6 +1,6 @@
 """Hand-built query-side guardrail.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §3 stage 2, §4.1, §10.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §3 stage 2, §4.1, §10.
 ADR:  ADR-0011 D2 (managed Bedrock Guardrails OOS per PRD §7;
       hand-built layered Guardrails-equivalent).
 

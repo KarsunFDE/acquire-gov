@@ -9,7 +9,7 @@ retrieval, rerank gate, citation hard-fail, audit log v1.
 
 ## M2 prereqs
 
-The grounded-retrieval slice (Slice C; `docs/specs/m2-retrieval-pipeline.md`)
+The grounded-retrieval slice (Slice C; `docs/specs/m2-grounded-retrieval/retrieval-pipeline.md`)
 expects the following before `/retrieve` and `/draft-solicitation/section`
 return non-stub results:
 
@@ -21,7 +21,7 @@ return non-stub results:
   BEDROCK_RERANK_REGION=us-west-2   # Rerank 1.0 is us-west-2 only
   ```
   IAM access-key/secret still works as a fallback. Stub fallback kicks in when no creds are present; first-day learners rely on this.
-- **Synthetic-data CI guard** + **FAR snapshot manifest** workflow — `eval/` runs `verify_far_manifest.py` on every PR (`docs/specs/m2-synthetic-corpus.md`). The repo ships synthetic-only content; the guard fails the build if any real PII or non-synthetic identifier appears in `data/`.
+- **Synthetic-data CI guard** + **FAR snapshot manifest** workflow — `eval/` runs `verify_far_manifest.py` on every PR (`docs/specs/m2-grounded-retrieval/synthetic-corpus.md`). The repo ships synthetic-only content; the guard fails the build if any real PII or non-synthetic identifier appears in `data/`.
 - `make seed` runs FAR Part 15.2 + Part 52 ingest plus 10 synthetic solicitations into atlas-local. Idempotent — re-running is safe.
 
 **Not a prereq:** host-disk encryption (BitLocker / FileVault / LUKS) — Phase 2 (PRD §4 OOS, ADR-0008 D1). Synthetic-only corpus + FedRAMP-safe deploy boundary mean disk encryption is Phase-2 territory.

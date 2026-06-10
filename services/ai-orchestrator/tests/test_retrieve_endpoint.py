@@ -1,6 +1,6 @@
 """C9 — ``POST /retrieve`` endpoint contract tests.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §4.1.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §4.1.
 
 Pipeline dependencies (guardrail / retriever / rerank / audit) are
 mocked via monkeypatch on the lazy module references inside

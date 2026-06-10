@@ -1,4 +1,4 @@
-# M2 grounded-retrieval eval gate — per docs/specs/m2-eval-harness.md section 7.
+# M2 grounded-retrieval eval gate — per docs/specs/m2-grounded-retrieval/eval-harness.md section 7.
 #
 # Required-check name: rag-eval-gate (spec section 7.3; matches the
 # pr-summary-check naming convention in commit 25ef68c).

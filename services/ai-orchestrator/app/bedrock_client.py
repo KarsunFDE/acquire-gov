@@ -188,7 +188,7 @@ def embed_documents(texts: list[str]) -> list[list[float]]:
         tenacity-retry envelope is C9 territory (m2-retrieval-pipeline.md
         §3 stage 5).
 
-    Spec: docs/specs/m2-retrieval-pipeline.md §10 BEDROCK_EMBED_DIMS=512;
+    Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §10 BEDROCK_EMBED_DIMS=512;
     ADR-0005 D2 quality-cost lever.
     """
     if not texts:

@@ -1,6 +1,6 @@
 """RAGAS eval runner — calls retrieval endpoints, scores 4 metrics, writes JSON.
 
-Per docs/specs/m2-eval-harness.md section 4 + section 7. Each eval-set entry
+Per docs/specs/m2-grounded-retrieval/eval-harness.md section 4 + section 7. Each eval-set entry
 yields one /draft-solicitation/section call (or /retrieve for retrieval-only
 queries); RAGAS scores the four locked metrics using Nova Micro as judge.
 

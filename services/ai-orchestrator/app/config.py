@@ -1,6 +1,6 @@
 """M2 retrieval-pipeline configuration constants.
 
-Source of truth: docs/specs/m2-retrieval-pipeline.md §10 + ADR-0010 D3.
+Source of truth: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §10 + ADR-0010 D3.
 Every constant below is pasted from the spec table. Env vars override at
 process start; no per-request overrides except where explicitly allowed
 (per-query RRF weights set by the query classifier in retrieval.py).

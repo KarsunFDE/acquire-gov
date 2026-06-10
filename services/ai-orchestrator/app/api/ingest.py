@@ -1,7 +1,7 @@
 """``POST /ingest/document`` router — M2 admin ingest endpoint.
 
-Wire shape locked in ``docs/specs/m2-retrieval-pipeline.md`` §4.3; handler
-internals follow ``docs/specs/m2-synthetic-corpus.md`` §8 step table.
+Wire shape locked in ``docs/specs/m2-grounded-retrieval/retrieval-pipeline.md`` §4.3; handler
+internals follow ``docs/specs/m2-grounded-retrieval/synthetic-corpus.md`` §8 step table.
 
 Pipeline-agent-owned modules (``app.config``, ``app.audit``,
 ``app.bedrock_client``) are imported **lazily inside the handler** so the

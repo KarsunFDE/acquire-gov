@@ -1,6 +1,6 @@
 """REQ-RAG-3 — cross-tenant retrieval impossible (locked-passing).
 
-Spec: docs/specs/m2-retrieval-pipeline.md §7 factory layer.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §7 factory layer.
 ADRs: ADR-0008 D2 (three-layer tenant isolation), ADR-0011 D6
 (adversarial-query cases).
 

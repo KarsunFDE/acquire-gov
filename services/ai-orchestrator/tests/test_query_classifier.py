@@ -1,6 +1,6 @@
 """C5 — query classifier per-query RRF weights (ADR-0006 D3).
 
-Spec: docs/specs/m2-retrieval-pipeline.md §3 stage 4, §5
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §3 stage 4, §5
 (retrieval.py owns regex/keyword classifier per ADR-0006 D3 table).
 ADR: ADR-0006 D3 — per-query weight rules.
 

@@ -1,6 +1,6 @@
 """Append-only audit-log writer — schema v1.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §8 (full schema v1).
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §8 (full schema v1).
 ADR: ADR-0008 D3 (auditLogWriter role, sync write-through, additive
 evolution only).
 

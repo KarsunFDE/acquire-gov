@@ -1,6 +1,6 @@
 """C14 — synthetic corpus generation tests.
 
-Spec: ``docs/specs/m2-synthetic-corpus.md`` §3 / §5 / §7.
+Spec: ``docs/specs/m2-grounded-retrieval/synthetic-corpus.md`` §3 / §5 / §7.
 """
 from __future__ import annotations
 

@@ -6,7 +6,7 @@ This document hands off the M2 grounded-retrieval rollout to the next session. R
 
 ## 1. Status snapshot
 
-All 21 ticketed PRs from `m2-rollout.md` shipped on `cj/m2-integration`. Backend + frontend + eval + corpus integrated. **187 pytest pass · 3 brownfield-debt locked-failing (Items 4 + 7, designed) · `pytest -m req_rag_3` 12 pass · frontend `ng build` clean (470.90 kB).**
+All 21 ticketed PRs from `m2-grounded-retrieval/rollout.md` shipped on `cj/m2-integration`. Backend + frontend + eval + corpus integrated. **187 pytest pass · 3 brownfield-debt locked-failing (Items 4 + 7, designed) · `pytest -m req_rag_3` 12 pass · frontend `ng build` clean (470.90 kB).**
 
 | Slice | Tickets | Status |
 |---|---|---|
@@ -17,7 +17,7 @@ All 21 ticketed PRs from `m2-rollout.md` shipped on `cj/m2-integration`. Backend
 | C — Frontend extension | C15, C16, C17 | ✅ merged |
 | D — Eval harness | D1, D2, D3 | ✅ merged |
 | Coordinator e2e (smoke) | — | ✅ green (pytest + req_rag_3 + ng build) |
-| M3 wiring (M2-10/M2-11/M2-17) | — | ⏳ deferred per `m2-rollout.md` |
+| M3 wiring (M2-10/M2-11/M2-17) | — | ⏳ deferred per `m2-grounded-retrieval/rollout.md` |
 | Real-Bedrock + atlas-local end-to-end | — | ⏳ awaiting AWS creds + `make seed` boot |
 
 ## 2. Critical gotchas (read before touching anything)
@@ -108,7 +108,7 @@ If any of these don't match expected output, STOP and investigate before adding 
 - Phase 1.5 trigger: real Bedrock + real eval cycles will surface low Context Recall on clause-specific queries; resolve by re-running the snapshot fetch with finer-grained Part-52 sub-fetches.
 
 ### 5.2 Synthetic-corpus spec drift
-- `docs/specs/m2-synthetic-corpus.md` §3 summary table says contract mix `FFP×4 / IDIQ×3 / CPFF×2 / BPA×1` but §3.1 per-row matrix says `FFP×3 / BPA×2`.
+- `docs/specs/m2-grounded-retrieval/synthetic-corpus.md` §3 summary table says contract mix `FFP×4 / IDIQ×3 / CPFF×2 / BPA×1` but §3.1 per-row matrix says `FFP×3 / BPA×2`.
 - Corpus shipped per §3 prompt (one extra FFP, one fewer BPA). SOL-DOD-002 was originally BPA → flipped to RFP/FFP per the §3 mix.
 - **Fix**: edit §3.1 matrix to match §3, OR re-run synthetic-corpus generator. 5min spec edit.
 
@@ -118,7 +118,7 @@ If any of these don't match expected output, STOP and investigate before adding 
 
 ### 5.4 Audit-log read endpoint owner TBD
 - `auditLogWriter` role bound to orchestrator service user. `auditLogReader` exists in seed but no endpoint exposes it yet. OIG replay path = future work.
-- Flagged in `m2-retrieval-pipeline.md` §13 + `m2-ui-far-sections.md` §17. Spec call: either orchestrator with role binding, OR new admin-service.
+- Flagged in `m2-grounded-retrieval/retrieval-pipeline.md` §13 + `m2-grounded-retrieval/ui-far-sections.md` §17. Spec call: either orchestrator with role binding, OR new admin-service.
 
 ### 5.5 Section J attachment storage
 - UI wizard step 8 (Section J — Attachments) renders a placeholder. No file persistence backend wired. Phase 1.5 or M3 storage spec.
@@ -130,7 +130,7 @@ If any of these don't match expected output, STOP and investigate before adding 
 
 1. **Prune worktrees + branches** (§2.4 commands). 30 seconds.
 2. **Decide push strategy**:
-   - Option A (fast): push `cj/m2-integration` as one mega-PR. Pro: 30 commits visible at once. Con: not the per-ticket-per-PR convention from `m2-rollout.md`.
+   - Option A (fast): push `cj/m2-integration` as one mega-PR. Pro: 30 commits visible at once. Con: not the per-ticket-per-PR convention from `m2-grounded-retrieval/rollout.md`.
    - Option B (clean): cherry-pick each ticket commit onto its own branch (`cj/m2-c1-...`, `cj/m2-c2-...`, etc.) + open 21 PRs sequentially. Pro: matches rollout discipline. Con: 21 PR reviews to merge.
    - Recommendation: A for trainer brownfield (cohort sees one big diff); B if real Karsun-FDE engagement requires per-ticket review.
 3. **Boot the stack end-to-end with real Bedrock**:
@@ -148,17 +148,17 @@ If any of these don't match expected output, STOP and investigate before adding 
    ```
 4. **Fix the 3 spec drift items** in §5.2 (5min), then commit.
 5. **Wire C8 LLM-judge real call** (§5.3) — single-file change in `app/guardrails.py`, add Nova-Micro client in `app/bedrock_client.py`.
-6. **M3 planning** — `m2-rollout.md` deferred section lists M2-10 (HITL middleware), M2-11 (MongoDBSaver checkpointer), M2-17 (Pydantic strict tool-arg). All M3 territory; new ADR catalog when ready.
+6. **M3 planning** — `m2-grounded-retrieval/rollout.md` deferred section lists M2-10 (HITL middleware), M2-11 (MongoDBSaver checkpointer), M2-17 (Pydantic strict tool-arg). All M3 territory; new ADR catalog when ready.
 
 ## 7. Critical file locations (cheat sheet)
 
 | Path | What |
 |---|---|
-| `docs/specs/m2-rollout.md` | PR-ordered execution plan (21 tickets) |
-| `docs/specs/m2-retrieval-pipeline.md` | Pipeline contracts + module layout + failure modes |
-| `docs/specs/m2-eval-harness.md` | RAGAS + Nova-Micro judge + programmatic checks |
-| `docs/specs/m2-synthetic-corpus.md` | Corpus + ingest endpoint internals |
-| `docs/specs/m2-ui-far-sections.md` | 13-step wizard + provenance + HITL surfaces |
+| `docs/specs/m2-grounded-retrieval/rollout.md` | PR-ordered execution plan (21 tickets) |
+| `docs/specs/m2-grounded-retrieval/retrieval-pipeline.md` | Pipeline contracts + module layout + failure modes |
+| `docs/specs/m2-grounded-retrieval/eval-harness.md` | RAGAS + Nova-Micro judge + programmatic checks |
+| `docs/specs/m2-grounded-retrieval/synthetic-corpus.md` | Corpus + ingest endpoint internals |
+| `docs/specs/m2-grounded-retrieval/ui-far-sections.md` | 13-step wizard + provenance + HITL surfaces |
 | `docs/adrs/0005..0011.md` | Locked design decisions (ADR-0005..0011) |
 | `services/ai-orchestrator/app/config.py` | Single source of truth for all M2 knobs (per ADR-0010 D3) |
 | `services/ai-orchestrator/app/api/retrieve.py` | `POST /retrieve` handler |

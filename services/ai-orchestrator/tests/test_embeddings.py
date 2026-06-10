@@ -1,6 +1,6 @@
 """C3 — Bedrock embeddings tests (Titan v2 @ 512).
 
-Spec: docs/specs/m2-retrieval-pipeline.md §10 (BEDROCK_EMBED_DIMS=512);
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §10 (BEDROCK_EMBED_DIMS=512);
 ADR-0005 D2 (Titan v2 model + dimensions).
 
 Covers:

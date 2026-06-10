@@ -2,9 +2,9 @@
 
 **Type:** vertical slice (UI + API). End state: CO clicks "Draft AI Parts" → backend coordinator fans out to PartIDrafter (C+H) + PartIVDrafter (L+M) in parallel via `Send`; Part II clauses resolved programmatically; Part III metadata passed through; aggregated bundle returned.
 
-**Status:** see [`m1-implementation-tracker.md`](./m1-implementation-tracker.md) §1.
+**Status:** see [`m1-agentic-drafting/tracker.md`](../tracker.md) §1.
 
-**Design reference:** [`m1-agentic-draft-workflow.md`](./m1-agentic-draft-workflow.md) §18.12 (per-AI-Part shape — supersedes §18.1–§18.10 on fan-out).
+**Design reference:** [`m1-agentic-drafting/design-reference.md`](../design-reference.md) §18.12 (per-AI-Part shape — supersedes §18.1–§18.10 on fan-out).
 
 ---
 

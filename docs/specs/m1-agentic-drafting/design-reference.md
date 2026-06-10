@@ -4,22 +4,22 @@
 
 **For implementation order + state tracking + crash recovery, start at the tracker:**
 
-→ **[`m1-implementation-tracker.md`](./m1-implementation-tracker.md)** — live phase status, vertical-slice gates, per-phase sub-spec links.
+→ **[`m1-agentic-drafting/tracker.md`](./tracker.md)** — live phase status, vertical-slice gates, per-phase sub-spec links.
 
 Per-phase implementation specs (each owns its own PR list + task checklist + handoff notes):
 
-- [Phase 0 — Foundation](./m1-phase-0-foundation.md) (schemas, config, checkpointer)
-- [Phase 1 — Single-section happy path](./m1-phase-1-single-section.md) (vertical slice)
-- [Phase 2 — HITL interrupt + resume + abandon](./m1-phase-2-hitl-resume.md) (vertical slice)
-- [Phase 3 — Batch coordinator with per-AI-Part fan-out](./m1-phase-3-batch-coordinator.md) (vertical slice)
-- [Phase 4 — Consistency critic](./m1-phase-4-consistency-critic.md) (vertical slice)
-- [Phase 5 — Hardening + observability](./m1-phase-5-hardening.md)
+- [Phase 0 — Foundation](./phases/0-foundation.md) (schemas, config, checkpointer)
+- [Phase 1 — Single-section happy path](./phases/1-single-section.md) (vertical slice)
+- [Phase 2 — HITL interrupt + resume + abandon](./phases/2-hitl-resume.md) (vertical slice)
+- [Phase 3 — Batch coordinator with per-AI-Part fan-out](./phases/3-batch-coordinator.md) (vertical slice)
+- [Phase 4 — Consistency critic](./phases/4-consistency-critic.md) (vertical slice)
+- [Phase 5 — Hardening + observability](./phases/5-hardening.md)
 
 The rollout tables in **§15, §18.9, §18.12, §19.10** of this document are **superseded** by the per-phase PR lists. They are kept inline because they are referenced from the supersession blocks (§18.12, §19.10) and from the ADRs; the per-phase docs own the authoritative PR order.
 
-Decisions: [ADR-0012](../adrs/0012-agentic-draft-solicitation-workflow.md) · [ADR-0013](../adrs/0013-multi-agent-coordinator-and-critic.md) · [ADR-0014](../adrs/0014-per-far-part-batch-fan-out.md) · [ADR-0015](../adrs/0015-preflight-input-validation.md)
+Decisions: [ADR-0012](../../adrs/0012-agentic-draft-solicitation-workflow.md) · [ADR-0013](../../adrs/0013-multi-agent-coordinator-and-critic.md) · [ADR-0014](../../adrs/0014-per-far-part-batch-fan-out.md) · [ADR-0015](../../adrs/0015-preflight-input-validation.md)
 
-Visual: [`m1-agentic-draft-workflow.html`](./m1-agentic-draft-workflow.html) — multi-agent topology with hover-on-block Pydantic schemas.
+Visual: [`m1-agentic-drafting/topology.html`](./topology.html) — multi-agent topology with hover-on-block Pydantic schemas.
 
 ---
 
@@ -108,7 +108,7 @@ One row per agent-internal stage. Failure column covers ADR-0009 D4 + ADR-0012 D
 6. call `validate_citations` after drafting,
 7. produce `FinalDraftSection` only after `validate_citations` returns `valid=True`.
 
-The harness does not enforce this order. The eval gate (`m2-eval-harness.md`) catches sustained drift; per-run cost variance is accepted (ADR-0012 D2).
+The harness does not enforce this order. The eval gate (`m2-grounded-retrieval/eval-harness.md`) catches sustained drift; per-run cost variance is accepted (ADR-0012 D2).
 
 ---
 
@@ -996,7 +996,7 @@ Each tool gets a test file under `services/ai-orchestrator/tests/agents/tools/te
 
 ### 13.2 Eval gate additions (`eval/` directory)
 
-`m2-eval-harness.md` already defines RAGAS Context Recall / Faithfulness / Answer Relevance / Cross-Tenant. Add three new metrics to the eval gate:
+`m2-grounded-retrieval/eval-harness.md` already defines RAGAS Context Recall / Faithfulness / Answer Relevance / Cross-Tenant. Add three new metrics to the eval gate:
 
 | Metric | Threshold | Computation |
 |---|---|---|
@@ -1084,7 +1084,7 @@ PR ordering. Each PR labeled `m1-agentic` and gated by the existing CI (`pytest`
 | E1 | `cj/m1-agentic-audit` | `audit.py` mod for `tool_calls` sub-record + resume/abandon row writers | existing audit tests green; new tests for sub-record schema |
 | E2 | `cj/m1-agentic-eval-gate` | three new eval metrics (§13.2) + workflow update | eval-gate workflow green on the existing eval set |
 | F1 | `cj/m1-agentic-frontend` | TypeScript model update, `solicitation.service.ts` mods, `section-card.component.ts` new render branch, `models/solicitation.ts` literal-type update | `ng build` clean; existing wizard build size baseline (~471 KB per handoff §1) does not regress > 10 KB |
-| F2 | `cj/m1-agentic-langsmith-smoke` | doc-only PR: `docs/specs/m1-agentic-draft-workflow.md` §16 verification one-liners; no code | doc lint |
+| F2 | `cj/m1-agentic-langsmith-smoke` | doc-only PR: `docs/specs/m1-agentic-drafting/design-reference.md` §16 verification one-liners; no code | doc lint |
 
 Total: 13 PRs. Independent PRs (A1, A2 can run parallel; B1, B2 can run parallel after A1; C1, C2 parallel after B1+B2; etc.). Critical path: A1 → A3 → B1 → C1 → D1 → F1.
 

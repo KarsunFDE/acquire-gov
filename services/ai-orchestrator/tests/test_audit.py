@@ -1,6 +1,6 @@
 """C7 — append-only audit_log writer (schema v1).
 
-Spec: docs/specs/m2-retrieval-pipeline.md §8 (schema v1 full layout).
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §8 (schema v1 full layout).
 ADR: ADR-0008 D3 (auditLogWriter role, sync write-through, append-only).
 """
 from __future__ import annotations

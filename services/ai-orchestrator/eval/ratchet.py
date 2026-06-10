@@ -1,4 +1,4 @@
-"""One-directional ratchet — per docs/specs/m2-eval-harness.md section 4.1.
+"""One-directional ratchet — per docs/specs/m2-grounded-retrieval/eval-harness.md section 4.1.
 
 The ratchet computes the effective per-PR threshold for each RAGAS metric:
 

@@ -2,9 +2,9 @@
 
 **Type:** backend-only setup. No vertical slice; no user-visible behavior changes. This phase pre-stages every Pydantic schema, config knob, and checkpointer wiring that Phases 1–5 reach for, so subsequent phases never block on schema churn.
 
-**Status:** see [`m1-implementation-tracker.md`](./m1-implementation-tracker.md) §1.
+**Status:** see [`m1-agentic-drafting/tracker.md`](../tracker.md) §1.
 
-**Design reference:** [`m1-agentic-draft-workflow.md`](./m1-agentic-draft-workflow.md) §6 (config), §6.2 (schemas), §10 (checkpointer).
+**Design reference:** [`m1-agentic-drafting/design-reference.md`](../design-reference.md) §6 (config), §6.2 (schemas), §10 (checkpointer).
 
 ---
 
@@ -116,7 +116,7 @@ All boxes in tracker §4 Phase 0 exit gate must be checked. Specifically:
 - [ ] `pytest services/ai-orchestrator/tests/agents/schemas/ -v` exits 0.
 - [ ] `pytest -m req_rag_3` still passes (12+).
 - [ ] `pytest -q services/ai-orchestrator/tests/` baseline test count not regressed.
-- [ ] Tracker §1 Phase 0 row → `completed` (separate commit per `m2-rollout.md` style).
+- [ ] Tracker §1 Phase 0 row → `completed` (separate commit per `m2-grounded-retrieval/rollout.md` style).
 
 ## 9. Handoff notes
 

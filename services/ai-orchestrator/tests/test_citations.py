@@ -1,6 +1,6 @@
 """C7 — citation hard-fail verification (ADR-0011 D3).
 
-Spec: docs/specs/m2-retrieval-pipeline.md §3 stage 11, §9.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §3 stage 11, §9.
 """
 from __future__ import annotations
 

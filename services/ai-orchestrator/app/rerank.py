@@ -1,6 +1,6 @@
 """Amazon Rerank 1.0 wiring + threshold gate.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §3 stage 7-8, §4.1, §10.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §3 stage 7-8, §4.1, §10.
 ADRs: ADR-0005 D2 (Rerank pinned us-west-2), ADR-0007 D2-D3 (reference
 impl + threshold table), ADR-0009 D4 (rerank-unavailable passthrough).
 

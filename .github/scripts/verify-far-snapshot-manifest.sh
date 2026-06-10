@@ -2,7 +2,7 @@
 # verify-far-snapshot-manifest.sh — assert docs/reference/far/MANIFEST.sha256
 # matches the on-disk bytes of every far-part-*.md sibling.
 #
-# Spec: docs/specs/m2-retrieval-pipeline.md §10 corpus integrity;
+# Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §10 corpus integrity;
 # ADR-0005 D5 snapshot pinning; ADR-0006 D1 markdown header convention.
 #
 # Exits 1 on any mismatch (missing file, hash drift, file present but unlisted).

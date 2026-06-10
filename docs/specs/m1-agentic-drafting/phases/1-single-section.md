@@ -2,9 +2,9 @@
 
 **Type:** vertical slice (UI + API). End state: CO clicks "AI-draft Section C" in the wizard with Step 1 completed, sees a grounded draft + citations rendered in section-card. Real Bedrock + seeded FAR corpus.
 
-**Status:** see [`m1-implementation-tracker.md`](./m1-implementation-tracker.md) §1.
+**Status:** see [`m1-agentic-drafting/tracker.md`](../tracker.md) §1.
 
-**Design reference:** [`m1-agentic-draft-workflow.md`](./m1-agentic-draft-workflow.md) §3–§13, §19 (preflight).
+**Design reference:** [`m1-agentic-drafting/design-reference.md`](../design-reference.md) §3–§13, §19 (preflight).
 
 ---
 
@@ -140,7 +140,7 @@ P1.1, P1.2, P1.3, P1.5 can all run in parallel after Phase 0. P1.4 + P1.6 requir
 ### P1.7 — End-to-end smoke
 
 - [ ] Smoke script `services/ai-orchestrator/scripts/m1_p1_smoke.sh` that runs the curl from spec §16 (single-section happy path) and asserts the response shape with `jq`.
-- [ ] Document the script in `m2-handoff.md` (or new `m1-handoff.md`) so the next session can run it.
+- [ ] Document the script in `m2-grounded-retrieval/handoff.md` (or new `m1-handoff.md`) so the next session can run it.
 
 ## 8. In-progress checklist (crash recovery)
 

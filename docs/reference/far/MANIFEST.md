@@ -5,7 +5,7 @@ source_urls:
   - https://www.acquisition.gov/far/part-15
   - https://www.acquisition.gov/far/part-52
 
-**Public-domain regulation text.** FAR (Federal Acquisition Regulation) is a published federal regulation in the public domain; snapshots stored here are verbatim or close-paraphrase extracts used as the grounding corpus for the M2 retrieval pipeline. Lean-scope per ADR-0005 D4: Parts I + II only; Parts III/IV expansion deferred to Phase 1.5 (see `docs/specs/m2-retrieval-pipeline.md` §13).
+**Public-domain regulation text.** FAR (Federal Acquisition Regulation) is a published federal regulation in the public domain; snapshots stored here are verbatim or close-paraphrase extracts used as the grounding corpus for the M2 retrieval pipeline. Lean-scope per ADR-0005 D4: Parts I + II only; Parts III/IV expansion deferred to Phase 1.5 (see `docs/specs/m2-grounded-retrieval/retrieval-pipeline.md` §13).
 
 Header convention per ADR-0006 D1: `#` = Part, `##` = Section, `###` = subsection.
 

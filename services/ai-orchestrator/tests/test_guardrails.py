@@ -1,6 +1,6 @@
 """C8 — ``QueryGuardrails.evaluate`` contract tests.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §3 stage 2, §9 ``query_blocked``.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §3 stage 2, §9 ``query_blocked``.
 ADR:  ADR-0011 D2.
 
 Adversarial phrasings are not enumerated here — the regex catalog lives

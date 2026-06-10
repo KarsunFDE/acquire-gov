@@ -1,6 +1,6 @@
 name: synthetic-data-check
 
-# Per ADR-0008 D1 + docs/specs/m2-synthetic-corpus.md §6.
+# Per ADR-0008 D1 + docs/specs/m2-grounded-retrieval/synthetic-corpus.md §6.
 #
 # Enforces the synthetic-data-only contract on every PR diff under the
 # reference corpora. Any new or renamed file whose name does not start with
@@ -82,7 +82,7 @@ jobs:
             echo
             echo "::error::$violations file(s) under docs/reference/** do not match the synthetic-data prefix allowlist."
             echo "Allowed prefixes: synthetic_*, SOL-GSA-*, SOL-DOD-*, FAR-*-snapshot, far-part-*, dfars-*"
-            echo "See docs/specs/m2-synthetic-corpus.md section 6 and ADR-0008 D1."
+            echo "See docs/specs/m2-grounded-retrieval/synthetic-corpus.md section 6 and ADR-0008 D1."
             exit 1
           fi
 

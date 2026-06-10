@@ -1,6 +1,6 @@
 """Build the 10 synthetic solicitations under ``docs/reference/synthetic-solicitations/``.
 
-Spec: ``docs/specs/m2-synthetic-corpus.md`` §3 (matrix) + §5 (layout) +
+Spec: ``docs/specs/m2-grounded-retrieval/synthetic-corpus.md`` §3 (matrix) + §5 (layout) +
 §7 (procedure).
 
 **Pure templating, NO LLM calls** — anti-pattern #13 from ADR-0009 D5:
@@ -336,7 +336,7 @@ def build_manifest_md(rows: list[SpecRow], snapshot_date: str,
         "**Synthetic data only.** All program names, dollar values, and "
         "office references are fictional. NAICS codes are real public "
         "taxonomy entries. No real CO identities, no real solicitation "
-        "numbers from SAM.gov. See `docs/specs/m2-synthetic-corpus.md` "
+        "numbers from SAM.gov. See `docs/specs/m2-grounded-retrieval/synthetic-corpus.md` "
         "section 6 for the data-class contract.",
         "",
         "**Sections L/M intentionally absent** — Parts III/IV are out of "

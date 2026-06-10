@@ -1,8 +1,8 @@
 # M2 Grounded Retrieval — Eval Harness Spec
 
-**Phase 1 · Milestone M2** · Implementer entry point: [`docs/adrs/0009-rag-eval-observability-failure.md`](../adrs/0009-rag-eval-observability-failure.md)
+**Phase 1 · Milestone M2** · Implementer entry point: [`docs/adrs/0009-rag-eval-observability-failure.md`](../../adrs/0009-rag-eval-observability-failure.md)
 
-This spec is **Slice D** previously deferred from [`docs/specs/m2-rollout.md`](./m2-rollout.md) ("RAGAS eval gate — After C11 once retrieval ships"). It owns the full eval-harness shape: RAGAS metrics, Nova Micro judge wiring, programmatic structural checks, CI workflow, eval-set generation, threshold ratchet logic, and the deploy-gate contract that proves PRD REQ-RAG-4 + PRD §7 ("eval as the gate").
+This spec is **Slice D** previously deferred from [`docs/specs/m2-grounded-retrieval/rollout.md`](./rollout.md) ("RAGAS eval gate — After C11 once retrieval ships"). It owns the full eval-harness shape: RAGAS metrics, Nova Micro judge wiring, programmatic structural checks, CI workflow, eval-set generation, threshold ratchet logic, and the deploy-gate contract that proves PRD REQ-RAG-4 + PRD §7 ("eval as the gate").
 
 ## 1. Purpose
 
@@ -11,7 +11,7 @@ PRD §7 makes quality-by-eval non-negotiable: *"Eval as the gate — quality is 
 ## 2. Inputs
 
 ```
-RETRIEVAL ENDPOINT (from m2-retrieval-pipeline.md):
+RETRIEVAL ENDPOINT (from m2-grounded-retrieval/retrieval-pipeline.md):
   POST /retrieve  — returns {outcome, gate_decision, rerank_top_score, citations[], request_id}
   POST /draft-solicitation/section — returns {outcome, section_text, citations[], gate_decision, request_id}
 
@@ -21,12 +21,12 @@ AUDIT LOG (from ADR-0008 D3):
     generation.{citations[], input_tokens, output_tokens, model, prompt_hash, completion_hash},
     outcome
 
-CORPUS (from m2-synthetic-corpus.md):
+CORPUS (from m2-grounded-retrieval/synthetic-corpus.md):
   FAR Part 15.2 + Part 52 snapshot in docs/reference/far/
   10 synthetic solicitations × 2 agencies (GSA, DoD) × Parts I+II, in docs/reference/synthetic-solicitations/
   ALL eval queries target this corpus; eval set knows ground-truth chunk_ids for each query
 
-PROVENANCE (from m2-ui-far-sections.md):
+PROVENANCE (from m2-grounded-retrieval/ui-far-sections.md):
   Per-section flag {"human"|"ai"|"ai-edited"} — eval does NOT score human-authored sections; only ai/ai-edited paths.
 ```
 
@@ -230,7 +230,7 @@ Per ADR-0009 D3 — observability is intentionally minimal in Phase 1.
 
 ### 8.1 CI guard already scheduled
 
-`.github/scripts/verify-bedrock-logging-disabled.sh` (already scheduled in `m2-rollout.md` Slice C7 + ADR-0009 D3) asserts Bedrock model invocation logging stays OFF on every PR. One-line defensive check, not observability tooling.
+`.github/scripts/verify-bedrock-logging-disabled.sh` (already scheduled in `m2-grounded-retrieval/rollout.md` Slice C7 + ADR-0009 D3) asserts Bedrock model invocation logging stays OFF on every PR. One-line defensive check, not observability tooling.
 
 ### 8.2 Phase 1 correlation primitive
 
@@ -260,14 +260,14 @@ Per ADR-0009 D2 — judge-drift mitigation deferred to Phase-1.5 trigger.
 
 | Provider spec | What this eval harness consumes |
 |---|---|
-| `m2-retrieval-pipeline.md` | Stable `/retrieve` + `/draft-solicitation/section` response shapes; `audit_log.request_id` correlation |
-| `m2-synthetic-corpus.md` | Lean corpus (10 docs × 2 agencies × Parts I+II) seeded; chunk_id stable across runs |
-| `m2-ui-far-sections.md` | NONE direct — UI does not feed eval; eval calls endpoints directly |
+| `m2-grounded-retrieval/retrieval-pipeline.md` | Stable `/retrieve` + `/draft-solicitation/section` response shapes; `audit_log.request_id` correlation |
+| `m2-grounded-retrieval/synthetic-corpus.md` | Lean corpus (10 docs × 2 agencies × Parts I+II) seeded; chunk_id stable across runs |
+| `m2-grounded-retrieval/ui-far-sections.md` | NONE direct — UI does not feed eval; eval calls endpoints directly |
 
 | Consumer | What this eval harness produces |
 |---|---|
 | `.github/workflows/rag-eval-gate.yml` required check | RAGAS metrics + Check 1 + Check 2 (blocking); Check 3 (soft) |
-| `m2-rollout.md` Slice D | Three PR-sized tickets (§13) |
+| `m2-grounded-retrieval/rollout.md` Slice D | Three PR-sized tickets (§13) |
 
 ## 12. Module + file layout
 
@@ -286,9 +286,9 @@ Per ADR-0009 D2 — judge-drift mitigation deferred to Phase-1.5 trigger.
 | `services/ai-orchestrator/eval/results/` | **gitignored** — per-run RAGAS + programmatic results |
 | `.github/workflows/rag-eval-gate.yml` | CI workflow (§7) |
 
-## 13. PR integration with m2-rollout.md
+## 13. PR integration with m2-grounded-retrieval/rollout.md
 
-This eval harness becomes **Slice D** added to `m2-rollout.md`. Three PR-sized tickets:
+This eval harness becomes **Slice D** added to `m2-grounded-retrieval/rollout.md`. Three PR-sized tickets:
 
 | # | Branch | Title | Type | Depends on |
 |---|---|---|---|---|
@@ -296,7 +296,7 @@ This eval harness becomes **Slice D** added to `m2-rollout.md`. Three PR-sized t
 | **D2** | `cj/m2-d2-ragas-judge` | `judge.py` + `run_ragas.py` + `baseline_main.json` initial seed | `feat(eval):` | D1 |
 | **D3** | `cj/m2-d3-programmatic-checks` | `run_programmatic.py` (Checks 1 + 2 + 3) + `ratchet.py` + `.github/workflows/rag-eval-gate.yml` | `feat(eval):` + `feat(ci):` | D2 |
 
-**Forward-reference:** `m2-rollout.md` will receive an edit adding Slice D rows + a Slice D dependency-graph node after C11. Tracked as "deferred from initial retrieval minimum" in the existing table; promoted to Slice D after C11 lands.
+**Forward-reference:** `m2-grounded-retrieval/rollout.md` will receive an edit adding Slice D rows + a Slice D dependency-graph node after C11. Tracked as "deferred from initial retrieval minimum" in the existing table; promoted to Slice D after C11 lands.
 
 ## 14. What this spec does NOT add (scope-out checklist)
 
@@ -325,7 +325,7 @@ This eval harness becomes **Slice D** added to `m2-rollout.md`. Three PR-sized t
 
 ## When to update this spec
 
-- **Before opening D1**: confirm the lean-corpus shape from `m2-synthetic-corpus.md` matches §3.1's input assumption.
+- **Before opening D1**: confirm the lean-corpus shape from `m2-grounded-retrieval/synthetic-corpus.md` matches §3.1's input assumption.
 - **After D3 merges**: stamp the initial `baseline_main.json` + `latency_token_baseline.json` from the first post-merge CI run; note any deviation from the 80-120 eval-set target.
 - **If a metric ratchet breaks unexpectedly**: trigger the Phase-1.5 judge-drift review (§9) before relaxing the threshold; do not lower thresholds without an ADR (§4.1).
 - **If the FAR snapshot is updated** (label `far-snapshot-update-approved`, ADR-0011 D7): re-run `build_eval_set.py` and open a separate D1-style PR for the regenerated `far_eval_set.jsonl` — adversarial-set PR remains separate per §3.3.

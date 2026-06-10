@@ -2,9 +2,9 @@
 
 **Type:** vertical slice (UI + API). End state: At wizard Step 12 (Review), critic agent runs over the section bundle; warnings render inline; Step 13 publish modal still gates on FAR 5.705 CO approval (critic never blocks submit — Phase 1 warn-only invariant).
 
-**Status:** see [`m1-implementation-tracker.md`](./m1-implementation-tracker.md) §1.
+**Status:** see [`m1-agentic-drafting/tracker.md`](../tracker.md) §1.
 
-**Design reference:** [`m1-agentic-draft-workflow.md`](./m1-agentic-draft-workflow.md) §18 (critic mechanics), §18.12.2 (`verify_l_m_consistency` rename per ADR-0014 D5).
+**Design reference:** [`m1-agentic-drafting/design-reference.md`](../design-reference.md) §18 (critic mechanics), §18.12.2 (`verify_l_m_consistency` rename per ADR-0014 D5).
 
 ---
 

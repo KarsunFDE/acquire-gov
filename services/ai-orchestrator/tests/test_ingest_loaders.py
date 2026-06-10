@@ -1,6 +1,6 @@
 """C12/C13 — format-adapter loader tests.
 
-Spec: ``docs/specs/m2-synthetic-corpus.md`` §9.
+Spec: ``docs/specs/m2-grounded-retrieval/synthetic-corpus.md`` §9.
 """
 from __future__ import annotations
 

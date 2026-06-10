@@ -21,7 +21,7 @@ import { RoleService } from './role.service';
  * ai-orchestrator. While the pipeline track is still wiring the live
  * endpoint, `useMockAI` (default `true`) returns a canned response shape
  * that matches the locked interface from
- * docs/specs/m2-ui-far-sections.md §2 / m2-retrieval-pipeline.md.
+ * docs/specs/m2-grounded-retrieval/ui-far-sections.md §2 / m2-retrieval-pipeline.md.
  */
 @Injectable({ providedIn: 'root' })
 export class SolicitationService {
@@ -80,7 +80,7 @@ export class SolicitationService {
 
   /**
    * Mock response shaped to the locked interface from
-   * docs/specs/m2-ui-far-sections.md §4.2. Canned text + 2 citations + pass gate.
+   * docs/specs/m2-grounded-retrieval/ui-far-sections.md §4.2. Canned text + 2 citations + pass gate.
    * The pipeline-restart agent flips `useMockAI=false` and removes this when
    * the live /draft-solicitation/section endpoint lands.
    */

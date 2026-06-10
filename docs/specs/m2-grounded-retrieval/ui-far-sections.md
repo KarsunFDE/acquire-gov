@@ -1,6 +1,6 @@
 # M2 UI — FAR UCF Wizard + Grounding Surfaces Spec
 
-**Phase 1 · Milestone M2** · Sibling of [`docs/specs/m2-retrieval-pipeline.md`](./m2-retrieval-pipeline.md), [`docs/specs/m2-eval-harness.md`](./m2-eval-harness.md), [`docs/specs/m2-synthetic-corpus.md`](./m2-synthetic-corpus.md). PR-ordered execution lives in [`docs/specs/m2-rollout.md`](./m2-rollout.md).
+**Phase 1 · Milestone M2** · Sibling of [`docs/specs/m2-grounded-retrieval/retrieval-pipeline.md`](./retrieval-pipeline.md), [`docs/specs/m2-grounded-retrieval/eval-harness.md`](./eval-harness.md), [`docs/specs/m2-grounded-retrieval/synthetic-corpus.md`](./synthetic-corpus.md). PR-ordered execution lives in [`docs/specs/m2-grounded-retrieval/rollout.md`](./rollout.md).
 
 This spec owns the Angular UI surface for M2 grounded retrieval: wizard expansion onto the FAR 15.204-1 Uniform Contract Format, per-section provenance, HITL signals, and the admin ingest form. No new decisions; ambiguity is marked `Open — owned by ADR-XXXX` or deferred to an M3 spec.
 
@@ -8,12 +8,12 @@ This spec owns the Angular UI surface for M2 grounded retrieval: wizard expansio
 
 The Angular SPA is the cohort-facing surface for M2. M1 shipped a 5-step solicitation wizard that submitted raw, ungrounded Bedrock output (PRD §2 — the OIG-defensibility problem). M2 lands grounded retrieval, citation verification, and a soft/hard HITL gate (ADR-0007 D2, ADR-0008 D4, ADR-0011 D2). This spec breaks the wizard onto the full FAR UCF (Parts I–IV, Sections A–M; skip Section I = retrieved-only), surfaces grounding confidence + citations on every AI-drafted section, wires a publish/amend hard-gate modal citing FAR 5.705 / 15.206, and adds an admin ingest UI for the corpus.
 
-Out of scope: backend pipeline (m2-retrieval-pipeline.md), eval harness (m2-eval-harness.md), corpus content (m2-synthetic-corpus.md), the LangGraph agent itself (M3), and solicitation-service Spring Boot work beyond the provenance entity shape this spec defines.
+Out of scope: backend pipeline (m2-grounded-retrieval/retrieval-pipeline.md), eval harness (m2-grounded-retrieval/eval-harness.md), corpus content (m2-grounded-retrieval/synthetic-corpus.md), the LangGraph agent itself (M3), and solicitation-service Spring Boot work beyond the provenance entity shape this spec defines.
 
 ## 2. Inputs from other specs — LOCKED INTERFACES (do not redefine)
 
 ```
-FROM m2-retrieval-pipeline.md:
+FROM m2-grounded-retrieval/retrieval-pipeline.md:
 
 POST /draft-solicitation/section
   Headers: X-Tenant-ID (required), X-Request-ID (UI generates uuid v4 client-side; passes through)
@@ -71,8 +71,8 @@ Per FAR 15.204-1 ([acquisition.gov/far/15.204-1](https://www.acquisition.gov/far
 | 7 | Part II.I — Contract Clauses | I (clauses retrieved from FAR Part 52) | Retrieved-only; no human edit on this list | None (read-only retrieval) | ADR-0005 D4 |
 | 8 | Part III.J — Attachments | J | Human (file upload — file persistence is M3 storage open item) | None | ADR-0005 D4 |
 | 9 | Part IV.K — Reps + Certs | K | Template-driven (human-edited; retrieval suggests template) | None | ADR-0005 D4 |
-| 10 | Part IV.L — Instructions to Offerors | L | AI-drafted (grounded); editable. **Lean corpus has sparse L coverage** — expect higher `hitl` / `withhold` rate | Soft | ADR-0005 D4, m2-synthetic-corpus.md |
-| 11 | Part IV.M — Evaluation Factors | M | AI-drafted (grounded); editable. **Lean corpus has sparse M coverage** — same caveat as L | Soft | ADR-0005 D4, m2-synthetic-corpus.md |
+| 10 | Part IV.L — Instructions to Offerors | L | AI-drafted (grounded); editable. **Lean corpus has sparse L coverage** — expect higher `hitl` / `withhold` rate | Soft | ADR-0005 D4, m2-grounded-retrieval/synthetic-corpus.md |
+| 11 | Part IV.M — Evaluation Factors | M | AI-drafted (grounded); editable. **Lean corpus has sparse M coverage** — same caveat as L | Soft | ADR-0005 D4, m2-grounded-retrieval/synthetic-corpus.md |
 | 12 | Review + cross-section consistency | All | Auto-check (FAR 15.204-5: L instructions ↔ M factors) | Soft (warn if mismatch) | ADR-0005 D4 |
 | 13 | Submit for internal review → ready-to-publish | All | — | **Hard gate**: publish disabled until INTERNAL_REVIEW → READY_TO_PUBLISH transition signed by CO | ADR-0008 D4, FAR 5.705 |
 
@@ -173,7 +173,7 @@ Driven by `gate_decision` and `requires_human_review` from `/draft-solicitation/
 
 ### 6.2 Hard-gate (per-action) — publish + amend
 
-Backend HITL middleware (ADR-0008 D4) is M3 wiring (`m2-rollout.md` M2-10/M2-11 deferred). Phase 1 UI surface is **client-side modal friction + solicitation-service state-machine**.
+Backend HITL middleware (ADR-0008 D4) is M3 wiring (`m2-grounded-retrieval/rollout.md` M2-10/M2-11 deferred). Phase 1 UI surface is **client-side modal friction + solicitation-service state-machine**.
 
 | Action | Trigger | Modal text requirement | Citation |
 |---|---|---|---|
@@ -255,7 +255,7 @@ Backend persistence is the **solicitation-service track** (Spring Boot 2.7.18 �
 
 ## 10. Admin ingest UI
 
-New route `/admin/ingest`, gated by admin role guard (§11). Wraps POST `/ingest/document` (§2 LOCKED INTERFACES). Consumes corpus availability from `m2-synthetic-corpus.md`.
+New route `/admin/ingest`, gated by admin role guard (§11). Wraps POST `/ingest/document` (§2 LOCKED INTERFACES). Consumes corpus availability from `m2-grounded-retrieval/synthetic-corpus.md`.
 
 ```
 /admin/ingest
@@ -312,7 +312,7 @@ Existing role guard (`frontend/src/app/services/role.guard.ts`) extends with `ad
 
 ## 12. Lean-corpus reality surfaced in UI
 
-Per `m2-synthetic-corpus.md`: initial corpus covers FAR Parts I+II well; Sections L and M (Part IV) have sparse coverage until Phase 1.5 expansion.
+Per `m2-grounded-retrieval/synthetic-corpus.md`: initial corpus covers FAR Parts I+II well; Sections L and M (Part IV) have sparse coverage until Phase 1.5 expansion.
 
 UI surface:
 - Sections L and M AI-draft buttons display an info banner on first use per session:
@@ -322,7 +322,7 @@ UI surface:
 
 ## 13. Test surface (component tests only)
 
-This spec covers UI tests, not e2e. e2e for the end-to-end retrieval path lives in `m2-eval-harness.md`.
+This spec covers UI tests, not e2e. e2e for the end-to-end retrieval path lives in `m2-grounded-retrieval/eval-harness.md`.
 
 | Test | Component | Covers |
 |---|---|---|
@@ -340,11 +340,11 @@ This spec covers UI tests, not e2e. e2e for the end-to-end retrieval path lives 
 |---|---|---|
 | Provides | Provenance shape (`SectionAudit` per-section block) | solicitation-service (consumes for Postgres migration) |
 | Provides | Audit-trail link route `/audit/<request_id>` | audit endpoint owner (Open — §17) |
-| Consumes | `/draft-solicitation/section` request + response shape | `m2-retrieval-pipeline.md` |
-| Consumes | `/ingest/document` request + response shape | `m2-retrieval-pipeline.md` |
-| Consumes | Corpus availability + Section L/M coverage caveat | `m2-synthetic-corpus.md` |
+| Consumes | `/draft-solicitation/section` request + response shape | `m2-grounded-retrieval/retrieval-pipeline.md` |
+| Consumes | `/ingest/document` request + response shape | `m2-grounded-retrieval/retrieval-pipeline.md` |
+| Consumes | Corpus availability + Section L/M coverage caveat | `m2-grounded-retrieval/synthetic-corpus.md` |
 
-## 15. PR integration with `m2-rollout.md`
+## 15. PR integration with `m2-grounded-retrieval/rollout.md`
 
 Three new tickets to add to Slice C (parallel-implementable once C9 `/retrieve` endpoint and C12 `/ingest/document` are live — the section-draft endpoint is the same orchestrator surface; ordering note in §15.1).
 
@@ -361,7 +361,7 @@ C15, C16, C17 are parallel-implementable among themselves. C15 blocks on backend
 ## 16. Scope-out checklist
 
 - [ ] Agentic workflow — M3 (wizard surfaces are placeholders; LangGraph interrupt flow lands later)
-- [ ] Backend HITL middleware wiring — M3 (`m2-rollout.md` M2-10/M2-11 deferred)
+- [ ] Backend HITL middleware wiring — M3 (`m2-grounded-retrieval/rollout.md` M2-10/M2-11 deferred)
 - [ ] Real LangGraph agent in the section-draft path — Phase 1 hits `/draft-solicitation/section` directly
 - [ ] Per-paragraph or per-sentence provenance — Phase 1.5+ (CRDT/Yjs class of work)
 - [ ] Attachment file persistence (Section J) — Open; M3 / Phase 1.5 storage spec
@@ -381,7 +381,7 @@ C15, C16, C17 are parallel-implementable among themselves. C15 blocks on backend
 | Audit-log read endpoint location (`GET /audit-log?request_id=...`) | Cross-service auth for `auditLogReader` role not yet spec'd in Phase 1 | Orchestrator alongside audit_log writer (ADR-0008 D3); needs role-binding spec |
 | Section J attachment storage backend | Phase 1 has no file persistence story | Defer to M3 or Phase 1.5 storage spec |
 | Section M ↔ Section L cross-validation engine (FAR 15.204-5 alignment) | Structural check requires retrieval over both section texts | Step 12 warn-only Phase 1; structural check with M3 or a separate spec |
-| `GET /ingest/recent?tenant_id=...` endpoint owner | Read-side counterpart to `/ingest/document`; not in m2-retrieval-pipeline.md LOCKED INTERFACES | Orchestrator alongside ingest writer; reuses tenant pre-filter from ADR-0008 D2 |
+| `GET /ingest/recent?tenant_id=...` endpoint owner | Read-side counterpart to `/ingest/document`; not in m2-grounded-retrieval/retrieval-pipeline.md LOCKED INTERFACES | Orchestrator alongside ingest writer; reuses tenant pre-filter from ADR-0008 D2 |
 
 ---
 

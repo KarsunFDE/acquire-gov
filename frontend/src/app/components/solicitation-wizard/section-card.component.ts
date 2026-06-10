@@ -14,7 +14,7 @@ import {
 /**
  * Per-section UI shell for AI-drafted FAR sections (C, H, L, M).
  *
- * Spec: docs/specs/m2-ui-far-sections.md §4 (shell), §5 (provenance state
+ * Spec: docs/specs/m2-grounded-retrieval/ui-far-sections.md §4 (shell), §5 (provenance state
  * machine), §6.1 (soft-gate badges), §6.3 (error-state inline messages),
  * §12 (lean-corpus L/M banner).
  *

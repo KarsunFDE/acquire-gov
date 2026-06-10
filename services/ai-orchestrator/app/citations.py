@@ -1,6 +1,6 @@
 """Citation hard-fail verification.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §3 stage 11, §9.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §3 stage 11, §9.
 ADR: ADR-0011 D3 (citation hard-fail).
 
 Every chunk_id cited in a generated completion MUST appear in the

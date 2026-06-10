@@ -7,7 +7,7 @@ import { DraftSectionCitation } from '../../models/solicitation';
  *
  * Renders up to 5 citations from the /draft-solicitation/section response,
  * each collapsible to reveal the source chunk text. Spec:
- * docs/specs/m2-ui-far-sections.md §4 (per-section UI shell) + §9.
+ * docs/specs/m2-grounded-retrieval/ui-far-sections.md §4 (per-section UI shell) + §9.
  *
  * The component is presentation-only — the authoritative gate decision lives
  * in the parent section-card via `gate_decision` (ADR-0007 D2).

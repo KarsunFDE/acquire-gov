@@ -1,6 +1,6 @@
 """RAGAS judge model wiring — Nova Micro via LiteLLM (eval-only).
 
-Per docs/specs/m2-eval-harness.md section 5 + ADR-0009 D2. This file is the
+Per docs/specs/m2-grounded-retrieval/eval-harness.md section 5 + ADR-0009 D2. This file is the
 ONLY place in the repo allowed to instantiate the Nova Micro client.
 Containment is enforced by CI grep in .github/workflows/rag-eval-gate.yml:
 

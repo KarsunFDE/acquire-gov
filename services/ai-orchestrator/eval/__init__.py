@@ -1,6 +1,6 @@
 """M2 grounded retrieval — eval harness package.
 
-Per docs/specs/m2-eval-harness.md. Each module is intentionally narrow:
+Per docs/specs/m2-grounded-retrieval/eval-harness.md. Each module is intentionally narrow:
 
 - build_eval_set.py — corpus → eval-set generator (spec §3)
 - judge.py         — Nova Micro judge wiring (spec §5)

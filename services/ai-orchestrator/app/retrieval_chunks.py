@@ -1,6 +1,6 @@
 """Retrieval-side chunker — thin wrapper over the ingest two-stage splitter.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §5 module layout.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §5 module layout.
 
 The ingest path (``app/api/ingest.py`` → ``app/ingest/loaders/markdown.py``
 + second-stage ``RecursiveCharacterTextSplitter``) handles uploads coming

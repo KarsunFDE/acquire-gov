@@ -1,6 +1,6 @@
 """``POST /retrieve`` router — M2 grounded retrieval endpoint.
 
-Endpoint contract: ``docs/specs/m2-retrieval-pipeline.md`` §4.1.
+Endpoint contract: ``docs/specs/m2-grounded-retrieval/retrieval-pipeline.md`` §4.1.
 Pipeline: spec §3 stages 1-8, 12. ADRs ADR-0006, ADR-0007, ADR-0008,
 ADR-0011 D2/D4.
 

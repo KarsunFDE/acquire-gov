@@ -2,9 +2,9 @@
 
 **Live state document.** This file is the entry point for any session resuming M1 implementation work. It tracks phase status, names the current vertical slice in flight, and points at the per-phase spec the implementer follows. Update this file at every phase status transition (commit message: `docs(tracker): phase N → <status>`).
 
-Decisions: [ADR-0012](../adrs/0012-agentic-draft-solicitation-workflow.md) · [ADR-0013](../adrs/0013-multi-agent-coordinator-and-critic.md) · [ADR-0014](../adrs/0014-per-far-part-batch-fan-out.md) · [ADR-0015](../adrs/0015-preflight-input-validation.md)
+Decisions: [ADR-0012](../../adrs/0012-agentic-draft-solicitation-workflow.md) · [ADR-0013](../../adrs/0013-multi-agent-coordinator-and-critic.md) · [ADR-0014](../../adrs/0014-per-far-part-batch-fan-out.md) · [ADR-0015](../../adrs/0015-preflight-input-validation.md)
 
-Design reference: [`m1-agentic-draft-workflow.md`](./m1-agentic-draft-workflow.md) (endpoint contracts, schemas, tool internals, audit shape — read for the *what*, not for implementation order)
+Design reference: [`m1-agentic-drafting/design-reference.md`](./design-reference.md) (endpoint contracts, schemas, tool internals, audit shape — read for the *what*, not for implementation order)
 
 ---
 
@@ -55,7 +55,7 @@ Read in this order. Stop as soon as you have enough context to take the next act
 3. **The phase spec for the active phase** (`docs/specs/m1-phase-N-*.md`) — find the "In-progress checklist" section near the bottom.
 4. **`git log cj/m1-pN-* --oneline | head -10`** — what actually merged vs. what the tracker thinks. Trust git over the tracker on conflict; reconcile by updating the tracker.
 5. **Only if scope question arises**: read the relevant ADR (0012–0015).
-6. **Only if endpoint-shape question arises**: read `m1-agentic-draft-workflow.md` (design reference).
+6. **Only if endpoint-shape question arises**: read `m1-agentic-drafting/design-reference.md` (design reference).
 
 If §2 active-phase block is empty but §1 shows a phase `in_progress`, the tracker drift is the bug to fix first.
 
@@ -69,7 +69,7 @@ Each block names the vertical slice (if any), the gate that proves done, and lin
 
 **Type:** backend-only setup (no vertical slice). All schemas, config, checkpointer, test markers in one place so subsequent phases can reach for them without churn.
 
-**Spec:** [`m1-phase-0-foundation.md`](./m1-phase-0-foundation.md)
+**Spec:** [`m1-agentic-drafting/phases/0-foundation.md`](./phases/0-foundation.md)
 
 **Exit gate (every box must be checked before Phase 1 starts):**
 - [ ] `app/agents/schemas.py` defines every Pydantic model named across ADR-0012/0013/0014/0015 (`SectionPlanContext`, `RetrievedEvidence`, `RelatedSolicitations`, `ExtractedRequirements`, `SectionDraftSkeleton`, `ValidationResult`, `GateDecisionResult`, `FinalDraftSection`, `Citation`, `ClaimCitation`, `PendingToolCall`, `PartDraftBundle`, `PartIIClauseList`, `PartIIIAttachmentMeta`, `PartResult`, `FARClauseReference`, `ConsistencyReport` + sub-reports, `BatchDraftRequest`, `BatchResumeRequest`, `SolicitationDraftBundle`, `PreflightResult`).
@@ -88,7 +88,7 @@ Each block names the vertical slice (if any), the gate that proves done, and lin
 
 **Vertical slice:** CO opens wizard → fills Step 1 form (reactive forms validate) → clicks "AI-draft Section C" → backend runs preflight + agent → response carries `outcome="draft_returned"` + 5 citations + `gate_decision="pass"` → wizard renders draft text + provenance badge + citation list. Real Bedrock + seeded FAR corpus.
 
-**Spec:** [`m1-phase-1-single-section.md`](./m1-phase-1-single-section.md)
+**Spec:** [`m1-agentic-drafting/phases/1-single-section.md`](./phases/1-single-section.md)
 
 **Exit gate:**
 - [ ] `POST /draft-solicitation/section` with full Step 1 metadata + section_id=C returns 200 with `outcome="draft_returned"` against the seeded FAR corpus + atlas-local Mongo + real Bedrock (`AWS_BEARER_TOKEN_BEDROCK` set).
@@ -102,13 +102,13 @@ Each block names the vertical slice (if any), the gate that proves done, and lin
 
 **PR count:** 7 (preflight, 4 programmatic tools, 2 LLM tools, agent builder, handler, Step 1 reactive forms, section-card binding).
 
-**Within-phase parallelism:** see [`m1-phase-1-single-section.md`](./m1-phase-1-single-section.md) §4 for the dependency graph.
+**Within-phase parallelism:** see [`m1-agentic-drafting/phases/1-single-section.md`](./phases/1-single-section.md) §4 for the dependency graph.
 
 ### Phase 2 — HITL interrupt + resume + abandon (vertical slice)
 
 **Vertical slice:** CO clicks AI-draft Section L → low rerank score (lean corpus) → middleware interrupts before `draft_section_text` runs → handler returns `outcome="interrupted"` + pending_tool_call → section-card renders "Pending CO decision" panel → CO clicks Approve → POST /section/resume → agent resumes → draft completes with `outcome="draft_returned"`. Multi-day pause survives an uvicorn restart.
 
-**Spec:** [`m1-phase-2-hitl-resume.md`](./m1-phase-2-hitl-resume.md)
+**Spec:** [`m1-agentic-drafting/phases/2-hitl-resume.md`](./phases/2-hitl-resume.md)
 
 **Exit gate:**
 - [ ] Forcing `rerank_top_score=0.45` (hitl band) produces `outcome="interrupted"` + pending_tool_call in response.
@@ -125,7 +125,7 @@ Each block names the vertical slice (if any), the gate that proves done, and lin
 
 **Vertical slice:** CO fills Step 1 → clicks "Draft AI Parts" → backend coordinator fans out to PartIDrafter (drafts C+H) + PartIVDrafter (drafts L+M) in parallel via `Send` + resolves Part II clauses programmatically + passes through Part III attachment metadata → aggregates → consistency critic runs → response is `SolicitationDraftBundle` with 4 PartResults + ConsistencyReport. Wizard renders all four sections + Part II clause list + Part III index.
 
-**Spec:** [`m1-phase-3-batch-coordinator.md`](./m1-phase-3-batch-coordinator.md)
+**Spec:** [`m1-agentic-drafting/phases/3-batch-coordinator.md`](./phases/3-batch-coordinator.md)
 
 **Exit gate:**
 - [ ] `POST /batch` with all 4 AI-draftable section provenances null returns 200 with `overall_outcome="batch_completed"` and `parts.{I,II,III,IV}.kind` matching `{llm_drafted, programmatic_resolved, wizard_provided, llm_drafted}`.
@@ -142,7 +142,7 @@ Each block names the vertical slice (if any), the gate that proves done, and lin
 
 **Vertical slice:** At wizard Step 12 (Review), wizard POSTs `/draft-solicitation/critic` with current section bundle → critic agent runs verify_l_m_consistency (LLM) + check_set_aside_consistency (programmatic) + check_clin_coverage (programmatic) → response is `ConsistencyReport` → wizard renders inline warnings. Step 13 publish modal still gates on FAR 5.705 CO approval; critic never blocks submit (Phase 1 warn-only).
 
-**Spec:** [`m1-phase-4-consistency-critic.md`](./m1-phase-4-consistency-critic.md)
+**Spec:** [`m1-agentic-drafting/phases/4-consistency-critic.md`](./phases/4-consistency-critic.md)
 
 **Exit gate:**
 - [ ] `POST /critic` with a known-mismatched L/M pair returns `ConsistencyReport` with `lm_alignment.overall_severity="warn"` and `mismatches` non-empty.
@@ -158,14 +158,14 @@ Each block names the vertical slice (if any), the gate that proves done, and lin
 
 **Type:** non-vertical (eval metrics + smoke tests + req_aid_1 + documentation polish).
 
-**Spec:** [`m1-phase-5-hardening.md`](./m1-phase-5-hardening.md)
+**Spec:** [`m1-agentic-drafting/phases/5-hardening.md`](./phases/5-hardening.md)
 
 **Exit gate:**
 - [ ] Four new eval-gate metrics (`tool_order_drift`, `withhold_short_circuit_rate`, `hitl_interrupt_recall`, `critic_*`) emit measurements into the eval-gate run summary (record-only — no CI fail).
 - [ ] `req_aid_1` marker covers ≥ 3 tests asserting structured-output contract on `/section`, `/batch`, `/critic`.
 - [ ] `req_rag_3` count holds at 13+ (no regression).
 - [ ] End-to-end smoke: clean atlas-local + seeded corpus + real Bedrock + Step 1 → /batch → resume any interrupt → Step 12 critic → Step 13 publish modal — all green in one CLI run.
-- [ ] M1 close-out section added to `m2-handoff.md` (or new `m1-handoff.md`) for the next phase's session pickup.
+- [ ] M1 close-out section added to `m2-grounded-retrieval/handoff.md` (or new `m1-handoff.md`) for the next phase's session pickup.
 
 **PR count:** 3 (eval metric collection, e2e smoke + req_aid_1, doc polish).
 
@@ -187,7 +187,7 @@ P5 nominally depends on all of P1-P4 but the eval-metric PRs can land incrementa
 
 ## 6. Status update protocol
 
-When transitioning a phase, do this in one commit (per `m2-rollout.md` per-PR style):
+When transitioning a phase, do this in one commit (per `m2-grounded-retrieval/rollout.md` per-PR style):
 
 1. Open phase: edit Phase N row in §1 to `Status: in_progress`, `Started: <YYYY-MM-DD>`, `Branch: <branch-name>`. Populate §2 active-phase block.
 2. Mid-phase PR landings: update the per-phase spec's task checklist (`docs/specs/m1-phase-N-*.md`). Tracker §2 "Next" line gets a fresh sentence. Do NOT update §1 mid-phase.
@@ -201,7 +201,7 @@ Commit messages: `docs(tracker): phase N → in_progress` / `gate_review` / `com
 
 This document **does not** carry:
 
-- Endpoint contracts (those are in `m1-agentic-draft-workflow.md`).
+- Endpoint contracts (those are in `m1-agentic-drafting/design-reference.md`).
 - Pydantic schema definitions (same).
 - Tool internals or system prompts (same).
 - Architectural rationale (those are in the ADRs).

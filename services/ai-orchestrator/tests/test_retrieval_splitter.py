@@ -1,6 +1,6 @@
 """C2 — retrieval-side splitter tests.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §5 (module layout).
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §5 (module layout).
 Confirms ``app.retrieval_chunks.split_markdown`` produces chunks carrying
 ``far_part`` / ``far_section`` metadata for downstream embedding +
 hybrid-search filtering (ADR-0008 D2 tenant filter sits on top of these).

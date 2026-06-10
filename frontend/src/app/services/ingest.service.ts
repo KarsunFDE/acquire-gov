@@ -6,8 +6,8 @@ import { RoleService } from './role.service';
 
 /**
  * Locked /ingest/document request + response shapes — see
- * docs/specs/m2-ui-far-sections.md §2 (LOCKED INTERFACES) and
- * docs/specs/m2-retrieval-pipeline.md.
+ * docs/specs/m2-grounded-retrieval/ui-far-sections.md §2 (LOCKED INTERFACES) and
+ * docs/specs/m2-grounded-retrieval/retrieval-pipeline.md.
  */
 export interface IngestMetadata {
   source_doc_name: string;

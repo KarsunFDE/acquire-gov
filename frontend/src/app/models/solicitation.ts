@@ -21,7 +21,7 @@ export interface Solicitation {
 
 /**
  * Per-section provenance + audit shape — defined by M2 UI spec
- * (docs/specs/m2-ui-far-sections.md §8), consumed by solicitation-service for
+ * (docs/specs/m2-grounded-retrieval/ui-far-sections.md §8), consumed by solicitation-service for
  * its Postgres migration. SHAPE is owned here; backend persistence is a
  * follow-up Flyway migration on the SB 2.7.18 service (W4 modernization is
  * Phase 2; do not pre-do).
@@ -88,8 +88,8 @@ export type SolicitationState =
 /**
  * Response from POST /draft-solicitation/section (orchestrator).
  *
- * Locked interface — see docs/specs/m2-retrieval-pipeline.md §2 and
- * docs/specs/m2-ui-far-sections.md §2. UI generates X-Request-ID
+ * Locked interface — see docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §2 and
+ * docs/specs/m2-grounded-retrieval/ui-far-sections.md §2. UI generates X-Request-ID
  * (uuid v4) client-side and passes it on the header; orchestrator
  * echoes it back on `request_id`.
  */

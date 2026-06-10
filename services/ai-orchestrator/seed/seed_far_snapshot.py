@@ -1,6 +1,6 @@
 """FAR-snapshot seed runner — splits + embeds + inserts.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §11 (seed flow). Companion to
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §11 (seed flow). Companion to
 ``seed/run_seed.py`` which only counts; this script does the full
 embed + bulk-insert.
 

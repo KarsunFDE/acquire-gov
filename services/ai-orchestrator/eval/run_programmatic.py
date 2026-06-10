@@ -1,4 +1,4 @@
-"""Programmatic eval checks — exactly three, per docs/specs/m2-eval-harness.md section 6.
+"""Programmatic eval checks — exactly three, per docs/specs/m2-grounded-retrieval/eval-harness.md section 6.
 
 No additional checks are added here. The spec is user-locked at three:
 

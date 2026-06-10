@@ -1,6 +1,6 @@
 # FAR Part 52 — Solicitation Provisions and Contract Clauses (Fixture)
 
-This fixture mirrors the markdown shape promised by docs/specs/m2-synthetic-corpus.md
+This fixture mirrors the markdown shape promised by docs/specs/m2-grounded-retrieval/synthetic-corpus.md
 §3.1 for the FAR snapshot. Contents are illustrative — used only by
 tests/test_eval_set_build.py to verify the structural generator.
 

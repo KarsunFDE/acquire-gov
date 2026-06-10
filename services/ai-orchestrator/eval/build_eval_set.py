@@ -1,6 +1,6 @@
 """Corpus → eval-set generator for M2 grounded retrieval.
 
-Per docs/specs/m2-eval-harness.md §3.1. Reads the FAR snapshot +
+Per docs/specs/m2-grounded-retrieval/eval-harness.md §3.1. Reads the FAR snapshot +
 synthetic-solicitations directories, emits 2-3 structurally-derived queries
 per discovered FAR section. The corpus IS the ground truth — clause-lookup
 queries know which clause answers them by structure, not opinion. This

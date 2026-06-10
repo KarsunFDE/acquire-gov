@@ -1,10 +1,10 @@
 # M2 Synthetic Corpus + Admin Ingest Pipeline — Implementation Spec
 
-**Phase 1 · Milestone M2** · Sibling of [`docs/specs/m2-retrieval-pipeline.md`](./m2-retrieval-pipeline.md) and [`docs/specs/m2-rollout.md`](./m2-rollout.md). No new decisions; every claim cites the locking ADR section or re-states a contract from `m2-retrieval-pipeline.md`.
+**Phase 1 · Milestone M2** · Sibling of [`docs/specs/m2-grounded-retrieval/retrieval-pipeline.md`](./retrieval-pipeline.md) and [`docs/specs/m2-grounded-retrieval/rollout.md`](./rollout.md). No new decisions; every claim cites the locking ADR section or re-states a contract from `m2-grounded-retrieval/retrieval-pipeline.md`.
 
 ## 1. Purpose
 
-This spec owns two scopes. **First**, the lean synthetic solicitation corpus (10 docs × 2 agencies × FAR Parts I+II) — schema, generation procedure, on-disk layout, synthetic-safety contract per PRD §7 and ADR-0008 D1. **Second**, the admin-side ingest pipeline internals — format adapters (Markdown, plain text, PDF, JSON-prechunked), content-scan gate, audit-log writes, and the body of the `POST /ingest/document` handler. The endpoint's wire shape is locked in [`m2-retrieval-pipeline.md` §4](./m2-retrieval-pipeline.md); this spec details only the internals behind that contract.
+This spec owns two scopes. **First**, the lean synthetic solicitation corpus (10 docs × 2 agencies × FAR Parts I+II) — schema, generation procedure, on-disk layout, synthetic-safety contract per PRD §7 and ADR-0008 D1. **Second**, the admin-side ingest pipeline internals — format adapters (Markdown, plain text, PDF, JSON-prechunked), content-scan gate, audit-log writes, and the body of the `POST /ingest/document` handler. The endpoint's wire shape is locked in [`m2-grounded-retrieval/retrieval-pipeline.md` §4](./retrieval-pipeline.md); this spec details only the internals behind that contract.
 
 ## 2. Inputs from other specs
 
@@ -66,7 +66,7 @@ CHUNK SCHEMA (ADR-0006 D2 — authoritative; do not redefine):
 | Doc size target | 8–20 chunks each (1200-char chunks) → ~10–30K chars per solicitation |
 | Total chunks target | ~100–200 from synthetic solicitations + ~400–600 from FAR Part 15.2 + Part 52 snapshot |
 
-**Sections L/M will be SPARSE in this corpus.** Parts III/IV are out of lean scope per ADR-0005 D4. Wizard AI-draft for L (Instructions to Offerors) and M (Evaluation Factors) will surface lower confidence at retrieval time — flag for `m2-retrieval-pipeline.md` open-items and `m2-eval-harness.md` threshold calibration. Phase 1.5 corpus expansion to Parts III/IV is the unblock path.
+**Sections L/M will be SPARSE in this corpus.** Parts III/IV are out of lean scope per ADR-0005 D4. Wizard AI-draft for L (Instructions to Offerors) and M (Evaluation Factors) will surface lower confidence at retrieval time — flag for `m2-grounded-retrieval/retrieval-pipeline.md` open-items and `m2-grounded-retrieval/eval-harness.md` threshold calibration. Phase 1.5 corpus expansion to Parts III/IV is the unblock path.
 
 ### 3.1 Per-doc generation matrix
 
@@ -180,7 +180,7 @@ Per PRD §7 and ADR-0008 D1. **No exceptions.**
 | Solicitation prose | SYNTHETIC (no real SAM.gov copy even if public — names real procurement officials) | PRD §7, ADR-0008 D1 |
 | FAR/DFARS text | REAL (public domain regulatory text) | ADR-0005 D5 carve-out |
 
-**Enforcement.** `.github/workflows/synthetic-data-check.yml` enforces an allowlist of `source_doc_name` prefixes on every PR diff under `docs/reference/synthetic-solicitations/` and on every audit-log assertion in tests (per ADR-0008 D1, M2-01 ticket from `m2-rollout.md`).
+**Enforcement.** `.github/workflows/synthetic-data-check.yml` enforces an allowlist of `source_doc_name` prefixes on every PR diff under `docs/reference/synthetic-solicitations/` and on every audit-log assertion in tests (per ADR-0008 D1, M2-01 ticket from `m2-grounded-retrieval/rollout.md`).
 
 Acceptable prefixes:
 
@@ -209,14 +209,14 @@ Script: `services/ai-orchestrator/seed/build_synthetic_solicitations.py`.
 
 ## 8. Ingest pipeline internals — POST /ingest/document body
 
-The endpoint wire shape is locked in `m2-retrieval-pipeline.md` §4. The handler internals are:
+The endpoint wire shape is locked in `m2-grounded-retrieval/retrieval-pipeline.md` §4. The handler internals are:
 
 | # | Step | Detail | Lock |
 |---|---|---|---|
 | 1 | Rate-limit | slowapi per `X-Tenant-ID`; same limiter as `/retrieve` | ADR-0011 D4 |
 | 2 | Auth check | admin role required | Open — admin-role enforcement is M1 territory; spec marks `Authorization: admin` header expected, full role check deferred |
 | 3 | Parse multipart | `file` bytes, `metadata` JSON, `format` string | — |
-| 4 | Size guard | `len(file) <= 10MB` else 413 `payload_too_large` | `m2-retrieval-pipeline.md` §4 |
+| 4 | Size guard | `len(file) <= 10MB` else 413 `payload_too_large` | `m2-grounded-retrieval/retrieval-pipeline.md` §4 |
 | 5 | Format adapter dispatch | `md`→`markdown.py` · `txt`→`plaintext.py` · `pdf`→`pdf.py` (pypdf) · `json-prechunked`→`json_prechunked.py` | §9 |
 | 6 | Loader returns | `list[{text, far_part?, far_section?, far_subsection?, far_clause?, title?, char_start, char_end}]` | ADR-0006 D2 |
 | 7 | Two-stage splitter | Per ADR-0006 D1. **SKIPPED if `format == "json-prechunked"`** — caller asserts chunks. | ADR-0006 D1 |
@@ -224,7 +224,7 @@ The endpoint wire shape is locked in `m2-retrieval-pipeline.md` §4. The handler
 | 9 | Embed chunks | `BedrockEmbeddings` Titan v2 @ 512 | ADR-0005 D2 |
 | 10 | Bulk insert | Into `chunks` collection with full schema (tenant_id, doc_class, snapshot_date, source_doc, ...) | ADR-0006 D2 |
 | 11 | Audit-log insert | `action="ingest_document"`, `outcome="ingested"`, `chunks_inserted`, `source_doc_name` | ADR-0008 D3 |
-| 12 | Response | `200` with `document_id`, `chunks_inserted`, `flagged_chunks=[]`, `duration_ms` | `m2-retrieval-pipeline.md` §4 |
+| 12 | Response | `200` with `document_id`, `chunks_inserted`, `flagged_chunks=[]`, `duration_ms` | `m2-grounded-retrieval/retrieval-pipeline.md` §4 |
 
 Step 8 is the **fail-closed gate**: if any chunk trips the scan, the entire document is rejected. Partial ingest is not a behavior.
 
@@ -260,7 +260,7 @@ Failure-outcome variants:
 | `payload_too_large` | `ingest_document` | `size_bytes: int`, `chunks_inserted: 0` |
 | `pdf_text_extraction_failed` | `ingest_document` | `extracted_char_count: int`, `chunks_inserted: 0` |
 
-All failure outcomes still write an audit record before responding. `outcome="rate_limited"` is the slowapi short-circuit case and does **not** audit (consistent with `m2-retrieval-pipeline.md` §3 stage 1).
+All failure outcomes still write an audit record before responding. `outcome="rate_limited"` is the slowapi short-circuit case and does **not** audit (consistent with `m2-grounded-retrieval/retrieval-pipeline.md` §3 stage 1).
 
 ## 9. Format adapters — per-format detail
 
@@ -358,7 +358,7 @@ Run-seed shares the same loader stack as `/ingest/document` — it is the local-
 | Direction | Contract |
 |---|---|
 | **Provides** | Lean corpus seeded into atlas-local; `/ingest/document` endpoint behavior; `doc_class` field on every chunk; `MANIFEST.sha256` + synthetic-data CI prefix check |
-| **Consumes** | Chunk schema (ADR-0006 D2); endpoint shape (`m2-retrieval-pipeline.md` §4); Titan embedder (ADR-0005 D2); audit_log writer (ADR-0008 D3); content scan (ADR-0011 D1.1); FAR manifest pattern (ADR-0011 D7) |
+| **Consumes** | Chunk schema (ADR-0006 D2); endpoint shape (`m2-grounded-retrieval/retrieval-pipeline.md` §4); Titan embedder (ADR-0005 D2); audit_log writer (ADR-0008 D3); content scan (ADR-0011 D1.1); FAR manifest pattern (ADR-0011 D7) |
 
 ## 13. Module + file layout
 
@@ -375,9 +375,9 @@ Run-seed shares the same loader stack as `/ingest/document` — it is the local-
 | `docs/reference/synthetic-solicitations/` | Checked-in lean corpus + `MANIFEST.md` + `MANIFEST.sha256` |
 | `.github/workflows/synthetic-data-check.yml` | Extended with `SOL-GSA-*` + `SOL-DOD-*` prefixes per §6 |
 
-## 14. PR integration with m2-rollout.md
+## 14. PR integration with m2-grounded-retrieval/rollout.md
 
-Three new tickets append to Slice C of `docs/specs/m2-rollout.md`. Numbering picks up where the rollout spec stops (C11 is the last existing ticket).
+Three new tickets append to Slice C of `docs/specs/m2-grounded-retrieval/rollout.md`. Numbering picks up where the rollout spec stops (C11 is the last existing ticket).
 
 | # | Branch | Title | Type | Depends on | Notes |
 |---|---|---|---|---|---|
@@ -406,6 +406,6 @@ Three new tickets append to Slice C of `docs/specs/m2-rollout.md`. Numbering pic
 | Item | Owner | Trigger |
 |---|---|---|
 | Admin-role enforcement on `/ingest/document` | M1 territory | Spec marks `Authorization: admin` header expected; full role check deferred to M1 auth work |
-| Sections L/M sparse-corpus impact on AI-draft confidence | `m2-retrieval-pipeline.md` open-items + `m2-eval-harness.md` threshold calibration | Surface when eval harness lands; recalibrate withhold threshold if L/M draft confidence falls below `m2-retrieval-pipeline.md` §3 stage-8 floor |
+| Sections L/M sparse-corpus impact on AI-draft confidence | `m2-grounded-retrieval/retrieval-pipeline.md` open-items + `m2-grounded-retrieval/eval-harness.md` threshold calibration | Surface when eval harness lands; recalibrate withhold threshold if L/M draft confidence falls below `m2-grounded-retrieval/retrieval-pipeline.md` §3 stage-8 floor |
 | Phase 1.5 Parts III/IV corpus expansion | Open — owned by ADR-XXXX | Separate PR + ADR if eval thresholds need recalibration when III/IV land |
 | `pdfplumber` fallback decision | Open — owned by ADR-XXXX | If cohort PDFs fail pypdf extraction in C13 review |

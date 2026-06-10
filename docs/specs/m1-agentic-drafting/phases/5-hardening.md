@@ -2,9 +2,9 @@
 
 **Type:** non-vertical. Eval-gate metric collection (record-only Phase 1), e2e smoke covering Phases 1–4, `req_aid_1` test marker coverage, M1 close-out handoff doc. End state: M1 is shippable; baseline metrics measured for Phase 1.5 trigger decisions.
 
-**Status:** see [`m1-implementation-tracker.md`](./m1-implementation-tracker.md) §1.
+**Status:** see [`m1-agentic-drafting/tracker.md`](../tracker.md) §1.
 
-**Design reference:** [`m1-agentic-draft-workflow.md`](./m1-agentic-draft-workflow.md) §13.2 + §18.8 (eval-gate metrics — record-only per ADR-0015 fix).
+**Design reference:** [`m1-agentic-drafting/design-reference.md`](../design-reference.md) §13.2 + §18.8 (eval-gate metrics — record-only per ADR-0015 fix).
 
 ---
 
@@ -27,7 +27,7 @@ Prove M1 is shippable end-to-end with all four ADRs implemented. Land eval-gate 
 - `req_rag_3` count holds at 13+ (no regression).
 - Single E2E smoke run that exercises Phases 1–4: clean atlas-local + seeded corpus + real Bedrock → Step 1 form → /batch with all 4 sections null → resume any interrupt → Step 12 critic → Step 13 publish modal.
 - LangSmith trace verification doc: what good traces look like for `/section`, `/batch`, `/critic`.
-- M1 close-out section added to `m2-handoff.md` (or new `docs/specs/m1-handoff.md`).
+- M1 close-out section added to `m2-grounded-retrieval/handoff.md` (or new `docs/specs/m1-handoff.md`).
 
 ## 3. Out of scope
 
@@ -95,7 +95,7 @@ All three pre-handoff PRs (P5.1, P5.2, P5.3) can run in parallel.
 
 ### P5.4 — M1 close-out handoff
 
-- [ ] Add a new section to `docs/specs/m2-handoff.md` (or write `docs/specs/m1-handoff.md`):
+- [ ] Add a new section to `docs/specs/m2-grounded-retrieval/handoff.md` (or write `docs/specs/m1-handoff.md`):
   - Phase status snapshot from tracker §1.
   - Final architecture summary (1 paragraph).
   - Known Phase 1.5 triggers list (eval thresholds flip, Nova-Micro guardrails wiring, audit-reader endpoint, Section J storage, etc.).

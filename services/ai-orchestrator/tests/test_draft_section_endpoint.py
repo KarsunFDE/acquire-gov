@@ -1,6 +1,6 @@
 """C9 — ``POST /draft-solicitation/section`` endpoint contract tests.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §4.2.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §4.2.
 
 All seams mocked: guardrails (in-class), retriever, rerank, ChatBedrock
 ``_invoke_chat``, audit. Tests focus on the pipeline-orchestration

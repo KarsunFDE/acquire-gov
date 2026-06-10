@@ -1,6 +1,6 @@
 """C6 — Amazon Rerank 1.0 wiring + threshold gate.
 
-Spec: docs/specs/m2-retrieval-pipeline.md §3 stage 7-8, §11 region pin.
+Spec: docs/specs/m2-grounded-retrieval/retrieval-pipeline.md §3 stage 7-8, §11 region pin.
 ADR: ADR-0007 D2-D3 (threshold table, reference impl).
 
 Covers:

@@ -2,9 +2,9 @@
 
 **Type:** vertical slice (UI + API). End state: low-confidence draft pauses the agent; CO sees a "Pending CO decision" panel and resumes with approve/edit/reject. Multi-day pause survives an uvicorn restart.
 
-**Status:** see [`m1-implementation-tracker.md`](./m1-implementation-tracker.md) §1.
+**Status:** see [`m1-agentic-drafting/tracker.md`](../tracker.md) §1.
 
-**Design reference:** [`m1-agentic-draft-workflow.md`](./m1-agentic-draft-workflow.md) §4.2 (/resume), §4.3 (/abandon), §9.1 (HITL middleware), §12.2 (interrupt flow), §6.3 (sweeper).
+**Design reference:** [`m1-agentic-drafting/design-reference.md`](../design-reference.md) §4.2 (/resume), §4.3 (/abandon), §9.1 (HITL middleware), §12.2 (interrupt flow), §6.3 (sweeper).
 
 ---
 
@@ -139,7 +139,7 @@ P2.1 + P2.3 + P2.4 can start in parallel after Phase 1. P2.2 sequences after P2.
   - Capture run_id from response.
   - Restart the uvicorn process (or recreate the MongoDBSaver singleton).
   - POST /section/resume with the same run_id → assert it resumes from checkpoint and completes.
-- [ ] Add to `m1-handoff.md` (or `m2-handoff.md` if reusing): instructions to reproduce the pause-restart flow manually.
+- [ ] Add to `m1-handoff.md` (or `m2-grounded-retrieval/handoff.md` if reusing): instructions to reproduce the pause-restart flow manually.
 
 ## 8. In-progress checklist (crash recovery)
 

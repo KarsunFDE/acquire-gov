@@ -26,7 +26,7 @@ import { SectionCardComponent } from './section-card.component';
  * Section I is retrieved-only (FAR Part 52 clause list, presented as a
  * read-only list at Step 7).
  *
- * Spec: docs/specs/m2-ui-far-sections.md (§3 layout, §4 shell, §5 state
+ * Spec: docs/specs/m2-grounded-retrieval/ui-far-sections.md (§3 layout, §4 shell, §5 state
  * machine, §6 HITL, §11 RBAC, §12 lean-corpus banner).
  *
  * Brownfield artifacts still surfaced on this page (M1 baseline):

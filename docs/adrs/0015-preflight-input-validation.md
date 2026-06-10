@@ -157,7 +157,7 @@ The existing `audit_log` row (ADR-0008 D3 schema preserved) gets one new optiona
 
 422-rejected requests still write an audit row with `action="preflight_rejected"`, `outcome="preflight_rejected"`, and the `missing_required` list. The 422 is observable in audit replay; "blank draft attempted without NAICS" is not silent.
 
-**Why audit even on rejected requests.** Adversarial pattern detection — if a tenant repeatedly hits `/draft-solicitation/section` with `missing_required=["naics","set_aside","contract_type"]`, that's a signal of a misbehaving client OR a probe pattern that the synthetic-data CI gate (`m2-eval-harness.md`) can flag.
+**Why audit even on rejected requests.** Adversarial pattern detection — if a tenant repeatedly hits `/draft-solicitation/section` with `missing_required=["naics","set_aside","contract_type"]`, that's a signal of a misbehaving client OR a probe pattern that the synthetic-data CI gate (`m2-grounded-retrieval/eval-harness.md`) can flag.
 
 ### D7 — Backward compatibility + migration
 
