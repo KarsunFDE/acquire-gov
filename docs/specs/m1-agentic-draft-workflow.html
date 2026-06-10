@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>acquire-gov · Agentic draft-solicitation workflow</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2028;
+    --panel-2: #232b36;
+    --border: #2d3744;
+    --text: #d8dee9;
+    --text-dim: #8a96a8;
+    --accent: #88c0d0;
+    --prog: #a3be8c;
+    --llm: #ebcb8b;
+    --hitl: #d08770;
+    --hard: #bf616a;
+    --free: #4c566a;
+    --low: #5e81ac;
+    --high: #b48ead;
+    --shadow: 0 4px 12px rgba(0,0,0,0.4);
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  body { padding: 24px 32px 80px; max-width: 1400px; margin: 0 auto; }
+  h1 { color: var(--accent); margin: 0 0 6px; font-size: 22px; }
+  h2 { color: var(--accent); margin: 32px 0 10px; font-size: 16px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { color: var(--text); margin: 18px 0 8px; font-size: 14px; }
+  p, li { color: var(--text); }
+  .sub { color: var(--text-dim); font-size: 12px; margin-bottom: 18px; }
+  code, .mono { font-family: var(--mono); font-size: 12.5px; background: var(--panel-2); padding: 1px 5px; border-radius: 3px; color: var(--accent); }
+  pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.4; overflow-x: auto; color: var(--text); margin: 6px 0 12px; }
+
+  /* Layout */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  /* Flow */
+  .flow { display: flex; flex-direction: column; gap: 18px; position: relative; }
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    box-shadow: var(--shadow);
+    position: relative;
+    cursor: default;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .stage:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .stage .row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .stage .name { font-weight: 600; font-size: 14px; color: var(--text); }
+  .stage .file { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-left: auto; }
+  .stage .desc { font-size: 12.5px; color: var(--text-dim); margin-top: 6px; }
+
+  /* Chips */
+  .chip {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    color: #1a2028;
+  }
+  .chip-prog { background: var(--prog); }
+  .chip-llm  { background: var(--llm); }
+  .chip-hitl { background: var(--hitl); }
+  .chip-hard { background: var(--hard); color: #fff; }
+  .chip-free { background: var(--free); color: var(--text); }
+  .chip-low  { background: var(--low);  color: #fff; }
+  .chip-high { background: var(--high); color: #1a2028; }
+  .chip-model { background: var(--panel-2); color: var(--accent); font-family: var(--mono); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+  /* Connector arrows */
+  .arrow {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 20px;
+    line-height: 1;
+    margin: -8px 0;
+  }
+  .arrow.branch { color: var(--hitl); font-weight: bold; }
+
+  /* Schema panel (hover-on-block reveal) */
+  .schema-pop {
+    position: absolute;
+    left: calc(100% + 14px);
+    top: 0;
+    width: 380px;
+    background: var(--panel-2);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 10px 12px;
+    box-shadow: var(--shadow);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--text);
+    white-space: pre-wrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-6px);
+    transition: opacity 0.15s, transform 0.15s;
+    z-index: 30;
+  }
+  .schema-pop .title {
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    display: block;
+    font-family: var(--sans);
+  }
+  .stage:hover .schema-pop { opacity: 1; transform: translateX(0); }
+
+  /* Side panel */
+  .side { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 20px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+  }
+  .card h3 { margin-top: 0; color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; font-size: 12px; }
+  .card .kv .k { color: var(--text-dim); }
+  .card .kv .v { color: var(--text); font-family: var(--mono); font-size: 11.5px; }
+
+  /* Cost table */
+  table.costs {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  table.costs th, table.costs td {
+    text-align: left;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  table.costs th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.costs td.num { font-family: var(--mono); text-align: right; color: var(--text); }
+  table.costs tr.total td { border-top: 1px solid var(--accent); border-bottom: none; font-weight: 600; color: var(--accent); }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+
+  /* Branches / HITL marker */
+  .branch-box {
+    background: rgba(208, 135, 112, 0.08);
+    border: 1px dashed var(--hitl);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: -6px 0;
+  }
+  .branch-box .label {
+    color: var(--hitl);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .branch-box .body { font-size: 12.5px; color: var(--text); }
+
+  /* Footer */
+  footer { color: var(--text-dim); font-size: 11px; margin-top: 40px; border-top: 1px solid var(--border); padding-top: 12px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>Agentic draft-solicitation workflow</h1>
+<div class="sub">
+  acquire-gov · M1 (LLM-assisted drafting) extending toward M3 ·
+  one <code>create_agent</code> run per <code>POST /draft-solicitation/section</code> ·
+  hover any block to see the Pydantic shape it emits ·
+  see <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a> for decisions
+</div>
+
+<div class="legend">
+  <div class="item"><span class="chip chip-prog">programmatic</span> deterministic, no LLM call</div>
+  <div class="item"><span class="chip chip-llm">LLM</span> model call, structured output</div>
+  <div class="item"><span class="chip chip-hitl">HITL gate</span> middleware interrupt point</div>
+  <div class="item"><span class="chip chip-hard">hard fail</span> raise on violation</div>
+  <div class="item"><span class="chip chip-free">free</span></div>
+  <div class="item"><span class="chip chip-low">low cost</span></div>
+  <div class="item"><span class="chip chip-high">high cost</span></div>
+</div>
+
+<div class="grid" style="margin-top: 24px;">
+
+<!-- ============== LEFT: FLOW ============== -->
+<div class="flow">
+
+  <!-- Stage 0 — handler entry -->
+  <div class="stage">
+    <div class="row1">
+      <span class="name">0 · Handler entry</span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="file">app/api/draft.py</span>
+    </div>
+    <div class="desc">Rate-limit (slowapi · per <code>X-Tenant-ID</code>) → QueryGuardrails → build <code>SectionPlanContext</code> → construct <code>create_agent</code>.</div>
+    <div class="schema-pop"><span class="title">→ produces SectionPlanContext</span>class SectionPlanContext(BaseModel):
+    # Matches M2 _FAR_SECTION_ENUM exactly — Section I is
+    # retrieved-only and bypasses this endpoint entirely
+    # (served by POST /retrieve, not /draft-solicitation/section).
+    section_id: Literal["A","B","C","D","E","F","G","H",
+                        "J","K","L","M"]
+    solicitation_id: str = Field(min_length=1, max_length=128)
+    tenant_id: str
+    naics: str | None = None
+    set_aside: str | None = None
+    user_constraints: str | None = Field(default=None, max_length=1000)
+    request_id: str
+    run_id: str   # = f"{solicitation_id}:{section_id}:{request_id}"</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 1 — retrieve far clauses -->
+  <div class="stage">
+    <div class="row1">
+      <span class="name">1 · <code>retrieve_far_clauses</code></span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="chip chip-model">Bedrock Rerank 1.0</span>
+      <span class="file">app/agents/tools/retrieve.py</span>
+    </div>
+    <div class="desc">
+      Calls existing <code>build_far_retriever(tenant_id=…)</code> factory (ADR-0008 D2) →
+      <code>MongoDBAtlasHybridSearchRetriever.invoke</code> → Bedrock Rerank.
+      Tenant pre-filter is structural; agent cannot bypass.
+      Returns <code>rerank_top_score</code> as a separate field so the agent can pass it to <code>compute_gate_decision</code> (stage 4) as an input arg.
+    </div>
+    <div class="schema-pop"><span class="title">→ produces RetrievedEvidence</span># Note: gate_decision is NOT a field here.
+# The gate decision is produced by a separate tool
+# (stage 4) so the HITL middleware predicate has a
+# tool to gate on whose INPUT args (the score) fully
+# determine its return.
+
+class Chunk(BaseModel):
+    chunk_id: str
+    text: str
+    far_part: str
+    far_section: str
+    far_clause: str
+    snapshot_date: date
+    relevance_score: float
+
+class RetrievedEvidence(BaseModel):
+    chunks: list[Chunk]
+    vector_weight: float
+    fulltext_weight: float
+    rerank_top_score: float | None  # None = rerank outage
+    degraded_mode: bool = False</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 2 — retrieve related solicitations -->
+  <div class="stage">
+    <div class="row1">
+      <span class="name">2 · <code>retrieve_related_solicitations</code> <span style="color:var(--text-dim); font-size:11px; font-weight:400;">(opportunistic)</span></span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="file">app/agents/tools/retrieve.py</span>
+    </div>
+    <div class="desc">
+      Same retriever factory, filtered <code>doc_class=internal_solicitation</code> + same <code>tenant_id</code>.
+      Skipped when <code>naics</code>/<code>set_aside</code> are null (zero token / zero Mongo cost).
+    </div>
+    <div class="schema-pop"><span class="title">→ produces RelatedSolicitations</span>class SolicitationSummary(BaseModel):
+    solicitation_id: str
+    title: str
+    naics: str | None
+    set_aside: str | None
+    contract_type: str | None
+    award_status: Literal[
+        "internal_review","published","awarded","cancelled"]
+    snapshot_date: date
+
+class RelatedSolicitations(BaseModel):
+    summaries: list[SolicitationSummary]
+    count: int</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 3 — extract requirements -->
+  <div class="stage">
+    <div class="row1">
+      <span class="name">3 · <code>extract_section_requirements</code></span>
+      <span class="chip chip-llm">LLM</span>
+      <span class="chip chip-low">low cost</span>
+      <span class="chip chip-model">amazon.nova-lite-v1:0</span>
+      <span class="file">app/agents/tools/extract.py</span>
+    </div>
+    <div class="desc">
+      Parses CO's <code>user_constraints</code> free-text into structured <code>Requirement</code> rows.
+      Nova Lite is ~30× cheaper than Sonnet and adequate for structured extraction.
+      Skipped when <code>user_constraints</code> is null.
+    </div>
+    <div class="schema-pop"><span class="title">→ produces ExtractedRequirements</span>class Requirement(BaseModel):
+    text: str
+    must_or_should: Literal["must","should"]
+    far_clause_hint: str | None
+    source_span: tuple[int, int]   # offsets in user_constraints
+
+class ExtractedRequirements(BaseModel):
+    requirements: list[Requirement]
+    source_text_hash: str   # SHA256 of user_constraints
+    model: str = "amazon.nova-lite-v1:0"
+    input_tokens: int
+    output_tokens: int</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 4 — compute gate decision (HITL interrupt point) -->
+  <div class="stage" style="border-color: var(--hitl);">
+    <div class="row1">
+      <span class="name">4 · <code>compute_gate_decision</code></span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="chip chip-hitl">HITL gate</span>
+      <span class="file">app/agents/tools/gate.py</span>
+    </div>
+    <div class="desc">
+      Pure threshold: <code>rerank_top_score</code> → {<code>pass</code>, <code>hitl</code>, <code>withhold</code>, <code>rerank_unavailable_passthrough</code>}.
+      <strong>HumanInTheLoopMiddleware interrupts here</strong> when decision ≠ <code>pass</code> AND request did not carry a prior CO decision.
+    </div>
+    <div class="schema-pop"><span class="title">→ tool input + GateDecisionResult</span># Tool TAKES rerank_top_score as input arg so the
+# middleware predicate (which only sees tool_call.args,
+# not the return value) can decide to interrupt by
+# applying the SAME threshold against the input.
+
+@tool
+def compute_gate_decision(
+    rerank_top_score: float | None,
+) -> GateDecisionResult:
+    """Decide pass/hitl/withhold per ADR-0007 D3."""
+
+class GateDecisionResult(BaseModel):
+    gate_decision: Literal["pass","hitl","withhold",
+        "rerank_unavailable_passthrough"]
+    rerank_top_score: float | None
+    reason: str
+
+# middleware predicate — reads INPUT arg, not return:
+def _interrupt_on_hitl_band(tc) -> bool:
+    s = tc.args.get("rerank_top_score")
+    if s is None:    # passthrough → no interrupt
+        return False
+    return WITHHOLD_T <= s < PASS_T  # hitl band only
+
+HumanInTheLoopMiddleware(interrupt_on={
+    "compute_gate_decision": _interrupt_on_hitl_band,
+})</div>
+  </div>
+
+  <!-- HITL pause branch box -->
+  <div class="branch-box">
+    <div class="label">⏸ HITL interrupt path · multi-day pause persisted</div>
+    <div class="body">
+      Middleware halts the run via <code>langgraph.types.Command</code> · <code>MongoDBSaver</code> writes full state to <code>agent_checkpoints</code> · handler returns
+      <code>{ outcome: "interrupted", run_id, pending_tool_call }</code> · UI surfaces "Pending CO decision" panel ·
+      CO resumes via <code>POST /draft-solicitation/section/resume</code> carrying
+      <code>Command(resume={"decisions":[{"type":"approve"|"edit"|"reject"}]})</code> · run continues from checkpoint.
+      TTL = None · no expiry · FAR 4.805 6-year retention floor honored.
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 5 — draft section text -->
+  <div class="stage">
+    <div class="row1">
+      <span class="name">5 · <code>draft_section_text</code></span>
+      <span class="chip chip-llm">LLM</span>
+      <span class="chip chip-high">high cost</span>
+      <span class="chip chip-model">us.anthropic.claude-sonnet-4-5-v1:0</span>
+      <span class="file">app/agents/tools/draft.py</span>
+    </div>
+    <div class="desc">
+      The only Sonnet call per run. Context is delimiter-wrapped (ADR-0011 D1.2 · <code>&lt;retrieved_context type="far_data" trust_level="reference_only"&gt;</code>).
+      Model emits text + structured <code>claim_chunk_map</code> so downstream validation is mechanical, not stylistic.
+      Agent's system prompt + tool docstrings direct the agent to NOT call this tool when the prior <code>compute_gate_decision</code> returned <code>withhold</code>;
+      under <code>hitl</code>, the middleware has already paused before this tool runs. Cost saving is steered, not harness-enforced (ADR-0012 D2 caveats).
+    </div>
+    <div class="schema-pop"><span class="title">→ produces SectionDraftSkeleton</span>class ClaimCitation(BaseModel):
+    sentence_index: int
+    chunk_id: str       # MUST be in retrieved set
+    far_clause: str
+    quote_span: tuple[int, int] | None
+
+class SectionDraftSkeleton(BaseModel):
+    section_text: str
+    claim_chunk_map: list[ClaimCitation]
+    model: str
+    input_tokens: int
+    output_tokens: int
+    completion_hash: str   # SHA256, raw never stored</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 6 — validate citations (hard fail) -->
+  <div class="stage" style="border-color: var(--hard);">
+    <div class="row1">
+      <span class="name">6 · <code>validate_citations</code></span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="chip chip-hard">hard fail</span>
+      <span class="file">app/citations.py</span>
+    </div>
+    <div class="desc">
+      Existing <code>verify_citations</code> from M2 (citations.py:32-61). Every <code>chunk_id</code> in <code>claim_chunk_map</code> must exist in the retrieved set.
+      Unknown ID → raise <code>CitationVerificationFailed</code> → 422 · audit <code>outcome="citation_verification_failed"</code>. No fallback, no remediation loop.
+    </div>
+    <div class="schema-pop"><span class="title">→ produces ValidationResult</span>class ValidationResult(BaseModel):
+    valid: bool
+    unknown_chunk_ids: list[str]
+    grounding_score: float
+    # 1.0 = every claim cited; lower = some claims uncited
+    # but no false IDs. False IDs always raise.</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Stage 7 — agent response (structured output) -->
+  <div class="stage" style="border-color: var(--accent);">
+    <div class="row1">
+      <span class="name">7 · Agent <code>response_format</code> → final structured output</span>
+      <span class="chip chip-prog">programmatic</span>
+      <span class="chip chip-free">free</span>
+      <span class="file">app/api/draft.py</span>
+    </div>
+    <div class="desc">
+      <code>create_agent(response_format=FinalDraftSection)</code> lands the result in <code>state["structured_response"]</code> — the v1.0 idiom (NOT <code>with_structured_output</code> on the chat model).
+      Audit row written with <code>tool_calls[]</code> sub-record per ADR-0008 D3 + D9. Response shipped to wizard.
+    </div>
+    <div class="schema-pop"><span class="title">→ FinalDraftSection · the agent's response_format</span># Canonical outcome enum — D3 source of truth.
+# "hitl_pending" is REMOVED (was M2 "draft + tick later"
+# pattern; replaced by interrupt+resume flow).
+# "query_blocked" is NOT here — that path 403s before
+# the agent runs and writes its own audit row.
+
+class Citation(BaseModel):
+    chunk_id: str
+    far_part: str
+    far_section: str
+    far_clause: str
+    snapshot_date: date
+    relevance_score: float
+    text: str
+
+class FinalDraftSection(BaseModel):
+    outcome: Literal[
+        "draft_returned",
+        "withheld",
+        "interrupted",
+        "citation_verification_failed",
+    ]
+    section_text: str | None
+    section_id: str   # matches _FAR_SECTION_ENUM (no I)
+    citations: list[Citation]
+    gate_decision: Literal[
+        "pass","hitl","withhold",
+        "rerank_unavailable_passthrough"]
+    requires_human_review: bool
+    rerank_top_score: float | None
+    request_id: str
+    run_id: str</div>
+  </div>
+
+</div>
+
+<!-- ============== RIGHT: SIDE PANEL ============== -->
+<div class="side">
+
+  <div class="card">
+    <h3>Context lifecycle</h3>
+    <div class="kv">
+      <div class="k">harness</div>           <div class="v">langchain.agents.create_agent</div>
+      <div class="k">version</div>           <div class="v">LangChain v1.0 (OSS)</div>
+      <div class="k">thread_id</div>         <div class="v">{sol_id}:{section_id}:{request_id}</div>
+      <div class="k">state</div>             <div class="v">full message history + tool I/O</div>
+      <div class="k">store</div>             <div class="v">MongoDBSaver (langchain-mongodb)</div>
+      <div class="k">db</div>                <div class="v">acquire_gov (reuses existing)</div>
+      <div class="k">collections</div>       <div class="v">agent_checkpoints · agent_checkpoint_writes</div>
+      <div class="k">TTL</div>               <div class="v">None — no expiry; FAR 4.805 retention floor</div>
+      <div class="k">resume protocol</div>   <div class="v">langgraph.types.Command(resume={…})</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Cost per section draft</h3>
+    <table class="costs">
+      <thead>
+        <tr><th>Stage</th><th>Model</th><th class="num">~tok in</th><th class="num">~tok out</th><th class="num">~USD</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1 retrieve_far</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0010 *</td></tr>
+        <tr><td>2 retrieve_related</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0010 *</td></tr>
+        <tr><td>3 extract_reqs</td><td>nova-lite</td><td class="num">500</td><td class="num">200</td><td class="num">0.0005</td></tr>
+        <tr><td>4 gate_decision</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0000</td></tr>
+        <tr><td>5 draft_section</td><td>sonnet-4-5</td><td class="num">6000</td><td class="num">2000</td><td class="num">0.0480</td></tr>
+        <tr><td>6 validate_cit</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0.0000</td></tr>
+        <tr class="total"><td>per draft</td><td>—</td><td class="num">~6500</td><td class="num">~2200</td><td class="num">~$0.05</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px;">
+      * Bedrock Rerank 1.0 ~$0.001/call · Sonnet $3/M in, $15/M out · Nova Lite $0.06/M in, $0.24/M out (2026-Q2 listing).
+      Withhold path skips stages 5+6 → ~$0.0025/draft.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Cost-savings rationale</h3>
+    <ul style="margin: 0; padding-left: 16px; font-size: 12.5px;">
+      <li><strong>One Sonnet call per run.</strong> Stage 5 is the only high-cost step; everything else is programmatic or Nova Lite.</li>
+      <li><strong>HITL interrupt before stage 5.</strong> On <code>hitl</code> gate band, middleware halts BEFORE the Sonnet call → CO previews + can edit constraints. Resume runs the draft only if CO approves.</li>
+      <li><strong>Withhold path skips drafting.</strong> On <code>withhold</code> gate, the agent's response-format + system prompt direct it to terminate without calling <code>draft_section_text</code>. Saving depends on the model honoring tool-order steering — eval gate catches drift.</li>
+      <li><strong>Lightweight extractor model.</strong> Nova Lite at $0.06/M in · $0.24/M out vs. Sonnet $3/M · $15/M — ~50× input / ~60× output cost gap. Spec pins the exact model via <code>config.BEDROCK_EXTRACT_MODEL</code> knob.</li>
+      <li><strong>No LLM judge in the loop.</strong> Phase 1 keeps the Nova Micro judge at the request edge (still stubbed; Phase 1.5).</li>
+      <li><strong>Opportunistic retrieval.</strong> Stage 2 skipped when naics/set_aside null — zero wasted Mongo + rerank cost.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Observability (LangSmith only)</h3>
+    <div class="kv">
+      <div class="k">env vars</div>     <div class="v">LANGSMITH_TRACING · LANGSMITH_API_KEY · LANGSMITH_PROJECT</div>
+      <div class="k">auto-traced</div>  <div class="v">every LLM span · every tool span · run latency · token counts</div>
+      <div class="k">tags</div>         <div class="v">[m1, draft-solicitation, section-{X}]</div>
+      <div class="k">metadata</div>     <div class="v">request_id · solicitation_id · section_id · tenant_id</div>
+      <div class="k">PII redaction</div><div class="v">N/A Phase 1 (synthetic-only); env-flagged for Phase 1.5</div>
+      <div class="k">NOT this</div>     <div class="v">OpenTelemetry · AIOps · full request-path tracing (PRD §4 excluded)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>UI adjustment magnitude</h3>
+    <div class="kv">
+      <div class="k">wizard struct</div><div class="v">no change · 13 UCF steps preserved</div>
+      <div class="k">section-card</div><div class="v">+1 surface ("Pending CO decision") · +run_id field</div>
+      <div class="k">solicitation.service</div><div class="v">+1 method · resumeSection(run_id, decision)</div>
+      <div class="k">SectionAudit</div><div class="v">+run_id field (additive)</div>
+      <div class="k">backend</div>     <div class="v">draft.py rewrite · new /resume endpoint · 6 tool modules</div>
+      <div class="k">estimate</div>    <div class="v">~1 FE day · ~3–4 BE days</div>
+    </div>
+  </div>
+
+</div>
+
+</div>
+
+<h2>Why these stages, in this order</h2>
+<p>
+  Order is <strong>not</strong> hardcoded in the handler — the agent loop chooses tool order, constrained by:
+  (a) tool docstrings describing preconditions ("must call <code>retrieve_far_clauses</code> before <code>draft_section_text</code>"),
+  (b) the <code>response_format</code> validator requiring <code>citations</code> non-empty when <code>outcome="draft_returned"</code>,
+  and (c) the HITL middleware interrupt point on stage 4.
+  Stage 5 is the highest-cost step and runs only when stage 4 returned <code>pass</code> (or the CO has explicitly resumed past a non-pass decision).
+  Stage 6 hard-fails the run if stage 5's <code>claim_chunk_map</code> references any chunk_id not in stage 1's retrieved set —
+  the same guarantee M2 ships today, now enforced inside the agent loop.
+</p>
+
+<h2>Where the existing UI maps in</h2>
+<p>
+  Wizard steps <strong>4 (Section C), 6 (Section H), 10 (Section L), 11 (Section M)</strong> are the only AI-drafted steps —
+  each is one <code>POST /draft-solicitation/section</code> call → one agent run end-to-end.
+  Section <strong>I (clauses)</strong> is retrieved-only and is served by the existing <code>POST /retrieve</code> endpoint, not by this agentic endpoint — the M2 <code>_FAR_SECTION_ENUM</code> excludes I and is preserved verbatim (ADR-0012 D3, D5.1).
+  Other sections (A, B, D, E, F, G, J, K) bypass the agent entirely — pure human textarea, provenance tagged <code>human</code> client-side.
+</p>
+
+<footer>
+  Diagram is informational. Source of truth = <a href="../adrs/0012-agentic-draft-solicitation-workflow.md">ADR-0012</a>.
+  Implementation spec = <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> (alongside this file).
+  Generated 2026-06-10 · acquire-gov · Phase 1 M1.
+</footer>
+
+</body>
+</html>
