@@ -1299,7 +1299,9 @@ class CLINCoverageReport(BaseModel):
   <a href="../adrs/0013-multi-agent-coordinator-and-critic.md">ADR-0013</a> (multi-agent shape, mechanics) ·
   <a href="../adrs/0014-per-far-part-batch-fan-out.md">ADR-0014</a> (per-AI-Part fan-out, granularity decision, L↔M critic reframe) ·
   <a href="../adrs/0015-preflight-input-validation.md">ADR-0015</a> (preflight three-tier required-field gate + reactive-forms wizard migration).
-  Implementation spec: <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> — §18.12 supersedes §18.1–§18.10 on fan-out shape; §19 adds preflight.
+  Implementation tracker: <a href="m1-implementation-tracker.md">m1-implementation-tracker.md</a> (entry point for resuming work; tracks phase status + crash recovery).
+  Design reference (this doc's source): <a href="m1-agentic-draft-workflow.md">m1-agentic-draft-workflow.md</a> — §18.12 supersedes §18.1–§18.10 on fan-out shape; §19 adds preflight.
+  Per-phase specs: <a href="m1-phase-0-foundation.md">phase 0</a> · <a href="m1-phase-1-single-section.md">phase 1</a> · <a href="m1-phase-2-hitl-resume.md">phase 2</a> · <a href="m1-phase-3-batch-coordinator.md">phase 3</a> · <a href="m1-phase-4-consistency-critic.md">phase 4</a> · <a href="m1-phase-5-hardening.md">phase 5</a>.
   v1.0 patterns sourced from <a href="https://docs.langchain.com/oss/python/langchain/multi-agent">docs.langchain.com/oss/python/langchain/multi-agent</a> (Subagents, Router, Handoffs, Skills, Custom Workflow).
   FAR Part references: <a href="https://www.acquisition.gov/far/15.204-2">15.204-2 Part I</a> · <a href="https://www.acquisition.gov/far/15.204-3">15.204-3 Part II</a> · <a href="https://www.acquisition.gov/far/15.204-4">15.204-4 Part III</a> · <a href="https://www.acquisition.gov/far/15.204-5">15.204-5 Part IV</a>.
   Generated 2026-06-10 · acquire-gov · Phase 1 M1.

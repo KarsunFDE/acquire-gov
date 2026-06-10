@@ -1,20 +1,33 @@
-# M1 Agentic Draft-Solicitation Workflow — Implementation Spec
+# M1 Agentic Draft-Solicitation Workflow — Design Reference
 
-**Phase 1 · Milestone M1 (extending toward M3)** · Consolidates ADR-0012 into implementer-grade endpoint contracts, module layout, tool surfaces, middleware wiring, and tests. No new decisions; every claim cites the locking ADR section.
+**Role of this document (read first):** this is the **design reference** — endpoint contracts, Pydantic schemas, tool internals, middleware wiring, audit shape. It captures *what each piece does*. It is **not** the implementation order.
 
-Companion artifacts:
-- [ADR-0012 — Agentic draft-solicitation workflow](../adrs/0012-agentic-draft-solicitation-workflow.md) — decisions
-- [`m1-agentic-draft-workflow.html`](./m1-agentic-draft-workflow.html) — visual flow with hover-on-block Pydantic schemas
-- [`m2-retrieval-pipeline.md`](./m2-retrieval-pipeline.md) — M2 retrieval pipeline this spec extends
-- [`m2-handoff.md`](./m2-handoff.md) — pre-M3 session handoff this spec advances
+**For implementation order + state tracking + crash recovery, start at the tracker:**
+
+→ **[`m1-implementation-tracker.md`](./m1-implementation-tracker.md)** — live phase status, vertical-slice gates, per-phase sub-spec links.
+
+Per-phase implementation specs (each owns its own PR list + task checklist + handoff notes):
+
+- [Phase 0 — Foundation](./m1-phase-0-foundation.md) (schemas, config, checkpointer)
+- [Phase 1 — Single-section happy path](./m1-phase-1-single-section.md) (vertical slice)
+- [Phase 2 — HITL interrupt + resume + abandon](./m1-phase-2-hitl-resume.md) (vertical slice)
+- [Phase 3 — Batch coordinator with per-AI-Part fan-out](./m1-phase-3-batch-coordinator.md) (vertical slice)
+- [Phase 4 — Consistency critic](./m1-phase-4-consistency-critic.md) (vertical slice)
+- [Phase 5 — Hardening + observability](./m1-phase-5-hardening.md)
+
+The rollout tables in **§15, §18.9, §18.12, §19.10** of this document are **superseded** by the per-phase PR lists. They are kept inline because they are referenced from the supersession blocks (§18.12, §19.10) and from the ADRs; the per-phase docs own the authoritative PR order.
+
+Decisions: [ADR-0012](../adrs/0012-agentic-draft-solicitation-workflow.md) · [ADR-0013](../adrs/0013-multi-agent-coordinator-and-critic.md) · [ADR-0014](../adrs/0014-per-far-part-batch-fan-out.md) · [ADR-0015](../adrs/0015-preflight-input-validation.md)
+
+Visual: [`m1-agentic-draft-workflow.html`](./m1-agentic-draft-workflow.html) — multi-agent topology with hover-on-block Pydantic schemas.
 
 ---
 
 ## 1. Purpose
 
-Implementer entry point for re-shaping `POST /draft-solicitation/section` from M2's single-pass `ChatBedrockConverse` call into a LangChain v1.0 `create_agent` run with programmatic + LLM tools, a HumanInTheLoopMiddleware interrupt point, MongoDB-backed checkpointing for multi-day pause, structured Pydantic output, and LangSmith tracing. Spec also defines the new `POST /draft-solicitation/section/resume` endpoint, the orphan-thread sweeper, and the audit-row `tool_calls` sub-record.
+Implementer entry point for the *what*. The new `POST /draft-solicitation/section` shape (LangChain v1.0 `create_agent` run with programmatic + LLM tools, a HumanInTheLoopMiddleware interrupt point, MongoDB-backed checkpointing for multi-day pause, structured Pydantic output, and LangSmith tracing), plus the multi-agent batch + critic endpoints, plus the preflight gate. This spec defines every endpoint, every schema, every tool, every audit-row field.
 
-This spec owns **what each PR builds**. The companion rollout doc (§15) owns **PR ordering, branch strategy, CI gates, label workflow**.
+For implementation *order*, read the tracker + per-phase specs. The §15 / §18.9 / §18.12 / §19.10 PR tables here are now a historical artifact preserved for cross-reference; the per-phase docs supersede them.
 
 LangChain version anchor: **v1.0 OSS** (https://docs.langchain.com/oss/python). The pre-v1.0 patterns `PromptTemplate`, `LLMChain.run`, LCEL pipe chains (`prompt | model | parser`), and hand-built `RunnableLambda` chains are **not** to be introduced; every code site that needs an LLM call goes through either `langchain.agents.create_agent` (this spec's harness) or, for the lightweight extractor model only, a direct `ChatBedrockConverse.invoke` with Pydantic structured output. Models hallucinate the pre-v1.0 patterns and the reviewer should reject any PR that adds them.
 
