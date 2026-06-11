@@ -31,6 +31,21 @@ log = logging.getLogger("ai-orchestrator.rerank")
 GateDecision = Literal["pass", "hitl", "withhold"]
 
 
+class RerankResult:
+    """Plain result of :func:`rerank_only` — no gate decision (ADR-0012 D2).
+
+    ``top_score is None`` + ``degraded_mode=True`` signals rerank outage;
+    the gate tool maps that to ``rerank_unavailable_passthrough``.
+    """
+
+    __slots__ = ("top", "top_score", "degraded_mode")
+
+    def __init__(self, top: list[dict], top_score: float | None, degraded_mode: bool) -> None:
+        self.top = top
+        self.top_score = top_score
+        self.degraded_mode = degraded_mode
+
+
 _client = None
 
 
@@ -95,6 +110,46 @@ def _real_rerank(client: Any, query: str, candidates: list[dict]) -> list[dict]:
         idx = entry["index"]
         out.append({**candidates[idx], "relevance_score": entry["relevanceScore"]})
     return out
+
+
+def rerank_only(query: str, candidates: list[dict]) -> RerankResult:
+    """Rerank candidates WITHOUT a gate decision (spec §8.1.1).
+
+    The agentic flow needs rerank and gate split so ``compute_gate_decision``
+    is the single source of ``gate_decision`` (its input args drive the HITL
+    middleware predicate — ADR-0012 D6). ``rerank_and_gate`` below keeps the
+    M2 ``/retrieve`` contract by composing this function with the inline gate.
+
+    Degraded path: Bedrock Rerank failure falls back to the stub scorer and
+    flags ``degraded_mode=True`` with ``top_score=None`` so the gate tool maps
+    it to ``rerank_unavailable_passthrough``.
+    """
+    if not candidates:
+        return RerankResult(top=[], top_score=None, degraded_mode=False)
+
+    client = _get_rerank_client()
+    if client is None:
+        log.info("bedrock-rerank stub-fallback (no boto3 / no credentials)")
+        top = _stub_rerank(candidates)
+        return RerankResult(
+            top=top,
+            top_score=top[0].get("relevance_score") if top else None,
+            degraded_mode=False,
+        )
+    try:
+        top = _real_rerank(client, query, candidates)
+    except (NoCredentialsError, BotoCoreError, ClientError) as exc:
+        log.warning("rerank failed (%s); degraded passthrough", exc)
+        return RerankResult(
+            top=candidates[: config.RERANK_TOP_N],
+            top_score=None,
+            degraded_mode=True,
+        )
+    return RerankResult(
+        top=top,
+        top_score=top[0].get("relevance_score") if top else None,
+        degraded_mode=False,
+    )
 
 
 def rerank_and_gate(

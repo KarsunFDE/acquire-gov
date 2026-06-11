@@ -69,6 +69,8 @@ export interface SolicitationCreate {
   naics?: string;
   setAside?: string;
   contractType?: string;
+  /** Agency FAR supplement (e.g., GSAM, DFARS) — soft-required draft context (ADR-0015 D3). */
+  agencySupplement?: string;
   ceilingValue?: number;
   noticeType?: string;
   sections?: SolicitationSections;
@@ -96,6 +98,11 @@ export type SolicitationState =
 export interface DraftSectionRequest {
   section_id: string;          // 'A'..'M' (excluding 'I')
   solicitation_id: string;
+  /** Step 1 metadata (ADR-0015 D3) — tier-validated by backend preflight. */
+  naics?: string | null;
+  set_aside?: string | null;
+  contract_type?: string | null;
+  agency_supplement?: string | null;
   query?: string;
   constraints?: string;
 }
@@ -110,10 +117,24 @@ export interface DraftSectionCitation {
   relevance_score: number;
 }
 
+/**
+ * Pending HITL tool call — populated when outcome === 'interrupted'
+ * (ADR-0012 D6/D8; resume surface lands Phase 2).
+ */
+export interface PendingToolCall {
+  tool_name: string;
+  args: Record<string, unknown>;
+  reason: string;
+}
+
 export interface DraftSectionResponse {
+  /**
+   * M1 contract (design ref §4.1): 'hitl_pending' is REMOVED — 'interrupted'
+   * replaces it (breaking literal change; design ref §14.1).
+   */
   outcome:
     | 'draft_returned'
-    | 'hitl_pending'
+    | 'interrupted'
     | 'withheld'
     | 'citation_verification_failed';
   section_text: string | null;
@@ -123,4 +144,9 @@ export interface DraftSectionResponse {
   requires_human_review: boolean;
   rerank_top_score: number | null;
   request_id: string;
+  /** Checkpoint thread id — `${solicitation_id}:${section_id}:${request_id}`. */
+  run_id?: string;
+  pending_tool_call?: PendingToolCall | null;
+  /** Soft-missing Step 1 fields the draft ran without (ADR-0015 D5). */
+  degraded_context?: string[];
 }

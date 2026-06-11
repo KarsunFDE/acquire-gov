@@ -68,7 +68,9 @@ import {
       </textarea>
 
       <div class="section-actions">
-        <button class="secondary" (click)="onAiDraft()" [disabled]="drafting">
+        <button class="secondary" (click)="onAiDraft()"
+                [disabled]="drafting || !step1Ready"
+                [title]="step1Ready ? '' : 'Complete Step 1 first'">
           {{ drafting ? 'Drafting…' : '▦ AI-draft Section ' + sectionLetter }}
         </button>
         <button class="secondary" (click)="onReset()" [disabled]="!text">
@@ -99,6 +101,13 @@ import {
              class="gate-banner gate-banner--degraded">
           Degraded mode (rerank unavailable) — review every citation before
           using this draft.
+        </div>
+
+        <!-- ADR-0015 D5 — drafted with soft-missing Step 1 context. -->
+        <div *ngIf="lastResponse.degraded_context?.length" class="gate-banner gate-banner--degraded">
+          ⚠ Drafted without {{ lastResponse.degraded_context!.join(', ') }}.
+          Retrieval quality may be lower — fill in Step 1 and re-draft for the
+          fully-grounded version.
         </div>
 
         <app-citation-list [citations]="lastResponse.citations"></app-citation-list>
@@ -208,6 +217,16 @@ export class SectionCardComponent implements OnInit {
   @Input() placeholder = '';
   @Input() text: string = '';
   @Input() audit: SectionAudit | undefined;
+  /** Step 1 reactive-forms validity gate (ADR-0015 D4) — parent wizard binds
+   * [step1Ready]="isStep1ContextReady()". AI-draft is disabled until true. */
+  @Input() step1Ready = false;
+  /** Step 1 metadata the wizard injects into the draft payload (ADR-0015 D3). */
+  @Input() draftMeta: {
+    naics?: string | null;
+    setAside?: string | null;
+    contractType?: string | null;
+    agencySupplement?: string | null;
+  } = {};
 
   @Output() textChange = new EventEmitter<string>();
   @Output() auditChange = new EventEmitter<SectionAudit>();
@@ -284,7 +303,12 @@ export class SectionCardComponent implements OnInit {
     if ((this.sectionLetter === 'L' || this.sectionLetter === 'M') && !this.isLeanBannerDismissed()) {
       this.showLeanCorpusBanner = true;
     }
-    this.svc.draftSection(this.solicitationId, this.sectionLetter).subscribe({
+    this.svc.draftSection(this.solicitationId, this.sectionLetter, {
+      naics: this.draftMeta.naics,
+      setAside: this.draftMeta.setAside,
+      contractType: this.draftMeta.contractType,
+      agencySupplement: this.draftMeta.agencySupplement,
+    }).subscribe({
       next: (resp) => {
         this.drafting = false;
         this.lastResponse = resp;
@@ -318,7 +342,20 @@ export class SectionCardComponent implements OnInit {
     } else if (resp.outcome === 'citation_verification_failed') {
       this.errorMessage =
         'Draft generated but citations failed verification — text withheld.';
-    } else if (resp.outcome === 'hitl_pending' || resp.requires_human_review) {
+    } else if (resp.outcome === 'interrupted') {
+      // ADR-0012 D6 — run paused on the HITL gate. Phase 2 renders the full
+      // "Pending CO decision" panel with approve/edit/reject; Phase 1 keeps
+      // the transitional state visible without transitioning provenance.
+      this.errorMessage =
+        'Draft paused pending CO decision (low retrieval confidence). ' +
+        'Resume support arrives with the HITL panel.';
+      this.emitAudit({
+        provenance: this.audit?.provenance ?? null,
+        aiRequestId: resp.request_id,
+        lastGateDecision: 'hitl',
+        lastRerankTopScore: resp.rerank_top_score,
+      });
+    } else if (resp.requires_human_review) {
       // Soft-gate HITL: keep returned text if any, but require CO review tick.
       if (resp.section_text) {
         this.text = resp.section_text;

@@ -1,6 +1,12 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import {
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { Router } from '@angular/router';
 import { SolicitationService } from '../../services/solicitation.service';
 import {
@@ -37,7 +43,7 @@ import { SectionCardComponent } from './section-card.component';
 @Component({
   selector: 'app-solicitation-wizard',
   standalone: true,
-  imports: [CommonModule, FormsModule, SectionCardComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, SectionCardComponent],
   template: `
     <div class="page-header">
       <div>
@@ -52,55 +58,65 @@ import { SectionCardComponent } from './section-card.component';
             [class.complete]="i < step">{{ i + 1 }}. {{ s }}</span>
     </div>
 
-    <!-- Step 1: Basics -->
+    <!-- Step 1: Basics — reactive forms (ADR-0015 D4): 5 hard-required
+         fields gate Next + every AI-draft button. -->
     <div class="card" *ngIf="step === 0">
       <h3>1. Basics</h3>
-      <label><span class="label-text">Title</span>
-        <input name="title" [(ngModel)]="model.title" placeholder="e.g., Cloud Managed Services BPA"/>
-      </label>
-      <div class="two-col">
-        <label><span class="label-text">Agency ID</span>
-          <input name="agencyId" [(ngModel)]="model.agencyId" placeholder="GSA-FAS"/>
+      <form [formGroup]="step1Form">
+        <label><span class="label-text">Title *</span>
+          <input formControlName="title" placeholder="e.g., Cloud Managed Services BPA"/>
         </label>
-        <label><span class="label-text">NAICS</span>
-          <input name="naics" [(ngModel)]="model.naics" placeholder="541512"/>
+        <div class="two-col">
+          <label><span class="label-text">Agency ID *</span>
+            <input formControlName="agencyId" placeholder="GSA-FAS"/>
+          </label>
+          <label><span class="label-text">NAICS *</span>
+            <input formControlName="naics" placeholder="541512"/>
+          </label>
+          <label><span class="label-text">Set-aside *</span>
+            <select formControlName="setAside">
+              <option value="FULL_AND_OPEN">Full and Open</option>
+              <option value="SMALL_BUSINESS">Small Business</option>
+              <option value="8A">8(a)</option>
+              <option value="SDVOSB">SDVOSB</option>
+              <option value="WOSB">WOSB</option>
+              <option value="HUBZONE">HUBZone</option>
+            </select>
+          </label>
+          <label><span class="label-text">Contract type *</span>
+            <select formControlName="contractType">
+              <option value="FFP">Firm Fixed Price</option>
+              <option value="CPFF">Cost Plus Fixed Fee</option>
+              <option value="T_AND_M">T&amp;M</option>
+              <option value="IDIQ">IDIQ</option>
+              <option value="BPA">BPA</option>
+            </select>
+          </label>
+          <label><span class="label-text">Agency FAR supplement</span>
+            <input formControlName="agencySupplement" placeholder="GSAM / DFARS (optional — drafts flag if missing)"/>
+          </label>
+          <label><span class="label-text">Notice type</span>
+            <select formControlName="noticeType">
+              <option value="RFI">RFI</option>
+              <option value="SOURCES_SOUGHT">Sources Sought</option>
+              <option value="RFP">RFP</option>
+              <option value="RFQ">RFQ</option>
+              <option value="COMBINED_SYNOPSIS">Combined Synopsis/Solicitation</option>
+            </select>
+          </label>
+          <label><span class="label-text">Ceiling ($)</span>
+            <input type="number" formControlName="ceilingValue"/>
+          </label>
+        </div>
+        <label><span class="label-text">Description (public-facing)</span>
+          <textarea rows="4" formControlName="description"
+                    placeholder="Public solicitation description (rendered raw — see Debt Item 9)"></textarea>
         </label>
-        <label><span class="label-text">Set-aside</span>
-          <select name="setAside" [(ngModel)]="model.setAside">
-            <option value="FULL_AND_OPEN">Full and Open</option>
-            <option value="SMALL_BUSINESS">Small Business</option>
-            <option value="8A">8(a)</option>
-            <option value="SDVOSB">SDVOSB</option>
-            <option value="WOSB">WOSB</option>
-            <option value="HUBZONE">HUBZone</option>
-          </select>
-        </label>
-        <label><span class="label-text">Contract type</span>
-          <select name="contractType" [(ngModel)]="model.contractType">
-            <option value="FFP">Firm Fixed Price</option>
-            <option value="CPFF">Cost Plus Fixed Fee</option>
-            <option value="T_AND_M">T&amp;M</option>
-            <option value="IDIQ">IDIQ</option>
-            <option value="BPA">BPA</option>
-          </select>
-        </label>
-        <label><span class="label-text">Notice type</span>
-          <select name="noticeType" [(ngModel)]="model.noticeType">
-            <option value="RFI">RFI</option>
-            <option value="SOURCES_SOUGHT">Sources Sought</option>
-            <option value="RFP">RFP</option>
-            <option value="RFQ">RFQ</option>
-            <option value="COMBINED_SYNOPSIS">Combined Synopsis/Solicitation</option>
-          </select>
-        </label>
-        <label><span class="label-text">Ceiling ($)</span>
-          <input name="ceiling" type="number" [(ngModel)]="model.ceilingValue"/>
-        </label>
-      </div>
-      <label><span class="label-text">Description (public-facing)</span>
-        <textarea name="description" rows="4" [(ngModel)]="model.description"
-                  placeholder="Public solicitation description (rendered raw — see Debt Item 9)"></textarea>
-      </label>
+        <p class="step-hint" *ngIf="!step1Form.valid">
+          * required before Next — AI drafting needs this context (preflight
+          rejects ungrounded requests; ADR-0015).
+        </p>
+      </form>
     </div>
 
     <!-- Step 2: Section A — Solicitation/Contract Form (human-only) -->
@@ -127,6 +143,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="C"
         sectionTitle="Statement of Work"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionC || ''"
         [audit]="sections.sectionCAudit"
         placeholder="C.1 SCOPE…"
@@ -163,6 +181,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="H"
         sectionTitle="Special Contract Requirements"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionH || ''"
         [audit]="sections.sectionHAudit"
         placeholder="H.1 SPECIAL REQUIREMENTS…"
@@ -222,6 +242,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="L"
         sectionTitle="Instructions to Offerors"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionL || ''"
         [audit]="sections.sectionLAudit"
         placeholder="L.1 GENERAL INSTRUCTIONS…"
@@ -236,6 +258,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="M"
         sectionTitle="Evaluation Factors for Award"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionM || ''"
         [audit]="sections.sectionMAudit"
         placeholder="M.1 BASIS FOR AWARD…"
@@ -301,7 +325,11 @@ import { SectionCardComponent } from './section-card.component';
     <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:space-between">
       <button class="secondary" (click)="back()" [disabled]="step === 0">← Back</button>
       <div>
-        <button *ngIf="step < steps.length - 1" (click)="next()">Next →</button>
+        <button *ngIf="step < steps.length - 1" (click)="next()"
+                [disabled]="step === 0 && !step1Form.valid"
+                [title]="step === 0 && !step1Form.valid ? 'Complete required Step 1 fields first' : ''">
+          Next →
+        </button>
       </div>
     </div>
 
@@ -398,16 +426,61 @@ export class SolicitationWizardComponent {
     naics: '',
     setAside: 'FULL_AND_OPEN',
     contractType: 'FFP',
+    agencySupplement: '',
     noticeType: 'RFP',
     ceilingValue: undefined,
   };
+
+  /** Step 1 reactive form (ADR-0015 D4) — 5 hard-required fields. */
+  step1Form: FormGroup;
 
   sections: SolicitationSections = {};
 
   showSubmitModal = false;
   submitApprovalChecked = false;
 
-  constructor(private svc: SolicitationService, private router: Router) {}
+  constructor(
+    private fb: FormBuilder,
+    private svc: SolicitationService,
+    private router: Router,
+  ) {
+    this.step1Form = this.fb.group({
+      title: ['', Validators.required],
+      agencyId: ['GSA-FAS', Validators.required],
+      naics: ['', Validators.required],
+      setAside: ['FULL_AND_OPEN', Validators.required],
+      contractType: ['FFP', Validators.required],
+      // optional:
+      agencySupplement: [''],
+      noticeType: ['RFP'],
+      ceilingValue: [null],
+      description: [''],
+    });
+    // Keep the legacy `model` object in sync — review table + submit payload
+    // read from it; the form is the single editing surface.
+    this.step1Form.valueChanges.subscribe((v) => Object.assign(this.model, v));
+  }
+
+  /** AI-draft buttons + Next gate read this (design ref §19.7). */
+  isStep1ContextReady(): boolean {
+    return this.step1Form.valid;
+  }
+
+  /** Step 1 metadata injected into every draftSection payload (ADR-0015 D3). */
+  get draftMeta(): {
+    naics: string | null;
+    setAside: string | null;
+    contractType: string | null;
+    agencySupplement: string | null;
+  } {
+    const v = this.step1Form.value;
+    return {
+      naics: v.naics || null,
+      setAside: v.setAside || null,
+      contractType: v.contractType || null,
+      agencySupplement: v.agencySupplement || null,
+    };
+  }
 
   back(): void {
     if (this.step > 0) this.step--;

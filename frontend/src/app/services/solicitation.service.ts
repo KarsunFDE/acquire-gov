@@ -30,11 +30,11 @@ export class SolicitationService {
 
   /**
    * When `true`, draftSection() returns a canned mock that conforms to the
-   * locked /draft-solicitation/section response shape. Default `true` until
-   * the orchestrator endpoint (C9) ships and pipeline track flips this off.
-   * Toggle in tests or browser console for end-to-end smoke against real backend.
+   * locked /draft-solicitation/section response shape. Flipped to `false` in
+   * M1 Phase 1 — the agentic /draft-solicitation/section endpoint is live.
+   * Toggle in tests or browser console to demo without the backend.
    */
-  useMockAI = true;
+  useMockAI = false;
 
   constructor(private http: HttpClient, private role: RoleService) {}
 
@@ -58,13 +58,25 @@ export class SolicitationService {
   draftSection(
     solicitationId: string,
     sectionId: string,
-    opts?: { query?: string; constraints?: string },
+    opts?: {
+      query?: string;
+      constraints?: string;
+      /** Step 1 metadata (ADR-0015 D3) injected by the wizard. */
+      naics?: string | null;
+      setAside?: string | null;
+      contractType?: string | null;
+      agencySupplement?: string | null;
+    },
   ): Observable<DraftSectionResponse> {
     const requestId = this.uuidV4();
     const tenantId = this.role.current.agencyId || 'agency-test';
     const body: DraftSectionRequest = {
       section_id: sectionId,
       solicitation_id: solicitationId,
+      naics: opts?.naics || null,
+      set_aside: opts?.setAside || null,
+      contract_type: opts?.contractType || null,
+      agency_supplement: opts?.agencySupplement || null,
       query: opts?.query,
       constraints: opts?.constraints,
     };
@@ -123,6 +135,9 @@ export class SolicitationService {
       requires_human_review: false,
       rerank_top_score: 0.74,
       request_id: requestId,
+      run_id: `mock:${sec}:${requestId}`,
+      pending_tool_call: null,
+      degraded_context: [],
     };
   }
 

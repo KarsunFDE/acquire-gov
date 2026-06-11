@@ -94,6 +94,7 @@ def _build_record(
     retrieval: dict | None = None,
     generation: dict | None = None,
     hitl: dict | None = None,
+    tool_calls: list | None = None,
     outcome: str,
     **extras: Any,
 ) -> dict:
@@ -117,12 +118,20 @@ def _build_record(
         record["request"] = {"query": query, "query_hash": _sha256(query)}
     if retrieval is not None:
         record["retrieval"] = retrieval
-    if generation is not None:
+    if generation is not None or tool_calls is not None:
         # Hash prompt + completion if caller supplied raw text.
-        gen = dict(generation)
+        gen = dict(generation) if generation is not None else {}
         for raw_key, hash_key in (("prompt", "prompt_hash"), ("completion", "completion_hash")):
             if raw_key in gen:
                 gen[hash_key] = _sha256(gen.pop(raw_key))
+        if tool_calls is not None:
+            # ADR-0012 D9 — per-tool sub-record. Accepts ToolCallRecord
+            # Pydantic instances or pre-dumped dicts; M2 callers pass None
+            # and see no change.
+            gen["tool_calls"] = [
+                tc.model_dump() if hasattr(tc, "model_dump") else tc
+                for tc in tool_calls
+            ]
         record["generation"] = gen
     if hitl is not None:
         record["hitl"] = hitl
