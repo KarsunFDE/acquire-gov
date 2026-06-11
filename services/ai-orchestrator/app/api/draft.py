@@ -149,10 +149,53 @@ def _run_agent(
             section_id=body.section_id, callbacks=[capture],
         ),
     )
+
+    # HITL middleware paused the run (ADR-0012 D6) — checkpoint persisted
+    # under thread_id; synthesize the interrupted response shape (§4.1).
+    if result.get("__interrupt__"):
+        final = _interrupted_final(
+            result["__interrupt__"], section_id=body.section_id,
+            request_id=request_id, run_id=run_id,
+        )
+        return final, capture.records
+
     final: FinalDraftSection = result["structured_response"]
     # Authoritative identifiers come from the handler, not the model.
     final = final.model_copy(update={"request_id": request_id, "run_id": run_id})
     return final, capture.records
+
+
+def _interrupted_final(
+    interrupts: list, *, section_id: str, request_id: str, run_id: str
+) -> FinalDraftSection:
+    """Map a HITLRequest interrupt payload to FinalDraftSection (design §12.2)."""
+    from app.agents.middleware.hitl_gate import hitl_reason  # noqa: PLC0415
+    from app.agents.schemas import PendingToolCall  # noqa: PLC0415
+
+    value = getattr(interrupts[0], "value", interrupts[0])
+    action = {}
+    if isinstance(value, dict):
+        requests = value.get("action_requests") or []
+        if requests:
+            action = requests[0]
+    args = action.get("args") or {}
+    score = args.get("rerank_top_score")
+    return FinalDraftSection(
+        outcome="interrupted",
+        section_text=None,
+        section_id=section_id,
+        citations=[],
+        gate_decision="hitl",  # only the hitl band interrupts (ADR-0012 D6)
+        requires_human_review=True,
+        rerank_top_score=score,
+        request_id=request_id,
+        run_id=run_id,
+        pending_tool_call=PendingToolCall(
+            tool_name=action.get("name", "compute_gate_decision"),
+            args=args,
+            reason=action.get("description") or hitl_reason(score),
+        ),
+    )
 
 
 def _stub_run(

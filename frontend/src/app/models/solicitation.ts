@@ -38,6 +38,9 @@ export interface SectionAudit {
   provenance: SectionProvenance;
   /** Correlates to audit_log.request_id (ADR-0008 D3). */
   aiRequestId?: string | null;
+  /** Checkpoint thread id of the last agent run — survives wizard refresh so
+   * an interrupted run can be resumed or abandoned (ADR-0012 D8). */
+  runId?: string | null;
   lastEditedAt?: string;
   lastEditedBy?: string;
   /** Last `rerank_top_score` seen for this section (presentation only — gate authority is `lastGateDecision`). */

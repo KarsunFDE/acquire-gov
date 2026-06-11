@@ -141,6 +141,41 @@ export class SolicitationService {
     };
   }
 
+  /**
+   * Resume a paused HITL run with a CO decision (ADR-0012 D8; design ref §12.5).
+   */
+  resumeSection(
+    runId: string,
+    decision: 'approve' | 'edit' | 'reject',
+    editedArgs?: Record<string, unknown>,
+    reason?: string,
+  ): Observable<DraftSectionResponse> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<DraftSectionResponse>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/section/resume`,
+      { run_id: runId, decision, edited_args: editedArgs ?? null, reason: reason ?? null },
+      { headers },
+    );
+  }
+
+  /**
+   * Abandon a paused run — CO types manually instead (ADR-0012 D8.2).
+   */
+  abandonSection(runId: string, reason?: string): Observable<{ ok: boolean }> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<{ ok: boolean }>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/section/abandon`,
+      { run_id: runId, reason: reason ?? null },
+      { headers },
+    );
+  }
+
   /** RFC 4122 v4 — minimal in-browser generator; orchestrator echoes it back. */
   private uuidV4(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

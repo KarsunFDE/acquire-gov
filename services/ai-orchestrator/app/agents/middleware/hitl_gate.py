@@ -1,15 +1,12 @@
-"""HITL gate middleware (ADR-0012 D6; design ref §9.1).
-
-Phase 1 status: **structurally present, interrupts disabled.** The predicate
-logic below is final (Phase 2 spec) but ``HITL_INTERRUPTS_ENABLED`` is False
-until Phase 2 lights it up — every Phase 1 gate decision returns ``pass``
-against the seeded corpus, so no interrupt would fire anyway; the flag makes
-that an invariant rather than a corpus accident.
+"""HITL gate middleware (ADR-0012 D6; design ref §9.1) — LIVE since Phase 2.
 
 The predicate inspects ``compute_gate_decision``'s INPUT args (the tool's
 input fully determines its return — that's why gate computation is a separate
 tool from retrieval) and reads the same :func:`gate_thresholds` helper as the
 tool body so the two thresholds stay locked together.
+
+Interrupting on the gate tool (not ``draft_section_text``) means the CO
+pre-approves BEFORE the Sonnet spend, not after (design ref §9.1 rationale).
 """
 from __future__ import annotations
 
@@ -19,8 +16,9 @@ from app.agents.tools.gate import gate_thresholds
 
 log = logging.getLogger("ai-orchestrator.middleware.hitl_gate")
 
-# Phase 2 flips this to True (PR P2.1). Keep module-level so tests can patch.
-HITL_INTERRUPTS_ENABLED = False
+# Phase 2 (P2.1) lit this up. Kept as a module flag so tests can isolate the
+# Phase 1 no-interrupt behavior and ops can emergency-disable via monkeypatch.
+HITL_INTERRUPTS_ENABLED = True
 
 
 def _score_in_hitl_band(rerank_top_score: float | None) -> bool:
@@ -31,32 +29,58 @@ def _score_in_hitl_band(rerank_top_score: float | None) -> bool:
     return withhold_t <= rerank_top_score < pass_t
 
 
-def _interrupt_on_hitl_band(tool_call) -> bool:
-    """Middleware predicate: inspect compute_gate_decision's INPUT args.
+def _interrupt_on_hitl_band(request) -> bool:
+    """``when`` predicate for InterruptOnConfig — receives a ToolCallRequest.
 
-    Accepts either a dict-shaped tool call ({"name", "args"}) or an object
-    with .name/.args — langchain versions differ.
+    Tolerates three shapes (langchain versions / unit tests differ):
+    ToolCallRequest (``.tool_call`` dict), a bare tool-call dict
+    ({"name", "args"}), or an object with .name/.args.
     """
     if not HITL_INTERRUPTS_ENABLED:
         return False
-    name = tool_call.get("name") if isinstance(tool_call, dict) else getattr(tool_call, "name", None)
+    tool_call = getattr(request, "tool_call", None)
+    if tool_call is None:
+        tool_call = request
+    if isinstance(tool_call, dict):
+        name = tool_call.get("name")
+        args = tool_call.get("args") or {}
+    else:
+        name = getattr(tool_call, "name", None)
+        args = getattr(tool_call, "args", None) or {}
     if name != "compute_gate_decision":
         return False
-    args = tool_call.get("args") if isinstance(tool_call, dict) else getattr(tool_call, "args", {})
-    return _score_in_hitl_band((args or {}).get("rerank_top_score"))
+    return _score_in_hitl_band(args.get("rerank_top_score"))
+
+
+def hitl_reason(rerank_top_score: float | None) -> str:
+    """Human-facing interrupt reason string (design ref §4.1 PendingToolCall)."""
+    withhold_t, pass_t = gate_thresholds()
+    return (
+        f"rerank_top_score {rerank_top_score} in [{withhold_t:.2f}, {pass_t:.2f}) "
+        f"— CO review required"
+    )
+
+
+def _describe(tool_call, state, runtime) -> str:  # noqa: ANN001 — langchain protocol
+    return hitl_reason((tool_call.get("args") or {}).get("rerank_top_score"))
 
 
 def build_hitl_middleware():
-    """Construct the HumanInTheLoopMiddleware (or None while disabled).
-
-    Returns None in Phase 1 so ``create_agent`` receives an empty middleware
-    list — structurally wired (builder filters None) without an interrupt
-    surface. Phase 2 returns the real middleware.
-    """
+    """Construct the HumanInTheLoopMiddleware (or None when disabled)."""
     if not HITL_INTERRUPTS_ENABLED:
         return None
     from langchain.agents.middleware import HumanInTheLoopMiddleware  # noqa: PLC0415
+    from langchain.agents.middleware.human_in_the_loop import (  # noqa: PLC0415
+        InterruptOnConfig,
+    )
 
     return HumanInTheLoopMiddleware(
-        interrupt_on={"compute_gate_decision": _interrupt_on_hitl_band}
+        interrupt_on={
+            "compute_gate_decision": InterruptOnConfig(
+                allowed_decisions=["approve", "edit", "reject"],
+                when=_interrupt_on_hitl_band,
+                description=_describe,
+            )
+        },
+        description_prefix="Gate decision requires CO review",
     )

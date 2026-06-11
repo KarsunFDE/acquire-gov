@@ -27,8 +27,11 @@ DELIBERATE BROWNFIELD DEBT (annotated for cohort discovery):
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import random
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
@@ -46,6 +49,11 @@ from app.api.draft import router as draft_router, limiter as draft_limiter
 from app.api.ingest import router as ingest_router
 from app.api.retrieve import router as retrieve_router, limiter as retrieve_limiter
 
+# M1 agentic routers (ADR-0012 D8) + orphan-thread sweeper (D8.2).
+from app.api.abandon import router as abandon_router
+from app.api.resume import router as resume_router
+from app.sweeper import sweep_orphan_threads
+
 # ⚠ DELIBERATE — no correlation-ID in the log format (Item 6).
 logging.basicConfig(
     level=logging.INFO,
@@ -53,7 +61,21 @@ logging.basicConfig(
 )
 log = logging.getLogger("ai-orchestrator")
 
-app = FastAPI(title="ai-orchestrator", version="0.1.0-brownfield")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Start the orphan-thread sweeper (ADR-0012 D8.2). Sweeper failures
+    are contained inside the task — never the request path."""
+    sweeper_task = asyncio.create_task(sweep_orphan_threads())
+    try:
+        yield
+    finally:
+        sweeper_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await sweeper_task
+
+
+app = FastAPI(title="ai-orchestrator", version="0.1.0-brownfield", lifespan=_lifespan)
 
 # ---- M2 router wiring (ADR-0011 D4 — slowapi per-tenant rate limit) ----
 # Use the retrieve-router limiter as the canonical app.state.limiter; the
@@ -75,6 +97,8 @@ app.add_middleware(SlowAPIMiddleware)
 app.include_router(retrieve_router)
 app.include_router(draft_router)
 app.include_router(ingest_router)
+app.include_router(resume_router)
+app.include_router(abandon_router)
 
 
 class DraftRequest(BaseModel):

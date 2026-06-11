@@ -7,6 +7,7 @@ import {
   DraftSectionCitation,
   DraftSectionResponse,
   GateDecision,
+  PendingToolCall,
   SectionAudit,
   SectionProvenance,
 } from '../../models/solicitation';
@@ -110,6 +111,28 @@ import {
           fully-grounded version.
         </div>
 
+        <!-- ADR-0012 D6/D8 — Pending CO decision panel (Phase 2 HITL surface). -->
+        <div *ngIf="pendingInterrupt" class="hitl-panel">
+          <div class="gate-banner gate-banner--hitl">
+            ⏸ <strong>Pending CO decision</strong> — {{ pendingInterrupt.reason }}
+          </div>
+          <div class="hitl-actions" *ngIf="!resuming">
+            <button (click)="onResume('approve')">Approve</button>
+            <button class="secondary" (click)="showEdit = !showEdit">Edit constraints</button>
+            <button class="secondary" (click)="onResume('reject')">Reject</button>
+            <button class="secondary" (click)="onDiscard()">Discard AI-draft</button>
+          </div>
+          <div *ngIf="showEdit && !resuming" class="hitl-edit">
+            <label>
+              <span class="label-text">rerank_top_score override</span>
+              <input type="number" step="0.05" min="0" max="1"
+                     [(ngModel)]="editedScore" name="editedScore-{{ sectionLetter }}"/>
+            </label>
+            <button (click)="onResumeEdit()">Resume with edited score</button>
+          </div>
+          <div *ngIf="resuming" class="step-hint">Resuming…</div>
+        </div>
+
         <app-citation-list [citations]="lastResponse.citations"></app-citation-list>
 
         <div class="audit-link">
@@ -180,6 +203,12 @@ import {
     }
     .gate-banner--withhold { background: #fdecea; color: #8b1a17; border: 1px solid #f4a09b; }
     .gate-banner--degraded { background: #fff4e5; color: #7a3e00; border: 1px solid #f3c089; }
+    .gate-banner--hitl     { background: #fff8e1; color: #6d4c00; border: 1px solid #e6c352; }
+
+    .hitl-panel { margin-top: 0.5rem; }
+    .hitl-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .hitl-edit { margin-top: 0.5rem; display: flex; gap: 0.5rem; align-items: flex-end; }
+    .hitl-edit input { width: 6rem; }
 
     .lean-corpus-banner {
       display: flex;
@@ -235,6 +264,12 @@ export class SectionCardComponent implements OnInit {
   errorMessage: string | null = null;
   lastResponse: DraftSectionResponse | null = null;
   reviewed = false;
+
+  /** HITL interrupt state (ADR-0012 D6/D8 — Phase 2). */
+  pendingInterrupt: PendingToolCall | null = null;
+  resuming = false;
+  showEdit = false;
+  editedScore = 0.6;
 
   /** Lean-corpus banner: only L/M, dismissible via localStorage. */
   showLeanCorpusBanner = false;
@@ -328,6 +363,7 @@ export class SectionCardComponent implements OnInit {
       this.emitAudit({
         provenance: 'ai',
         aiRequestId: resp.request_id,
+        runId: resp.run_id ?? null,
         lastGateDecision: resp.gate_decision,
         lastRerankTopScore: resp.rerank_top_score,
       });
@@ -343,15 +379,19 @@ export class SectionCardComponent implements OnInit {
       this.errorMessage =
         'Draft generated but citations failed verification — text withheld.';
     } else if (resp.outcome === 'interrupted') {
-      // ADR-0012 D6 — run paused on the HITL gate. Phase 2 renders the full
-      // "Pending CO decision" panel with approve/edit/reject; Phase 1 keeps
-      // the transitional state visible without transitioning provenance.
-      this.errorMessage =
-        'Draft paused pending CO decision (low retrieval confidence). ' +
-        'Resume support arrives with the HITL panel.';
+      // ADR-0012 D6 — run paused on the HITL gate. Render the "Pending CO
+      // decision" panel; provenance does NOT transition until resume
+      // completes (interrupted is transitional — design ref §12.5).
+      this.pendingInterrupt = resp.pending_tool_call ?? {
+        tool_name: 'compute_gate_decision',
+        args: {},
+        reason: 'Low retrieval confidence — CO review required',
+      };
+      this.editedScore = resp.rerank_top_score ?? 0.6;
       this.emitAudit({
         provenance: this.audit?.provenance ?? null,
         aiRequestId: resp.request_id,
+        runId: resp.run_id ?? null,
         lastGateDecision: 'hitl',
         lastRerankTopScore: resp.rerank_top_score,
       });
@@ -422,6 +462,7 @@ export class SectionCardComponent implements OnInit {
     const next: SectionAudit = {
       provenance: patch.provenance ?? this.audit?.provenance ?? null,
       aiRequestId: patch.aiRequestId ?? this.audit?.aiRequestId ?? null,
+      runId: patch.runId !== undefined ? patch.runId : this.audit?.runId ?? null,
       lastEditedAt: new Date().toISOString(),
       lastEditedBy: this.audit?.lastEditedBy,
       lastRerankTopScore: patch.lastRerankTopScore ?? this.audit?.lastRerankTopScore ?? null,
@@ -429,6 +470,80 @@ export class SectionCardComponent implements OnInit {
     };
     this.audit = next;
     this.auditChange.emit(next);
+  }
+
+  /** Resume target — prefer the live response, fall back to persisted audit
+   * (wizard refresh mid-interrupt keeps runId in SectionAudit). */
+  private get interruptRunId(): string | null {
+    return this.lastResponse?.run_id ?? this.audit?.runId ?? null;
+  }
+
+  onResume(decision: 'approve' | 'reject'): void {
+    const runId = this.interruptRunId;
+    if (!runId) return;
+    this.resuming = true;
+    this.errorMessage = null;
+    this.svc.resumeSection(runId, decision).subscribe({
+      next: (resp) => {
+        this.resuming = false;
+        this.pendingInterrupt = null;
+        this.showEdit = false;
+        this.lastResponse = resp;
+        this.handleResponse(resp);
+      },
+      error: (err) => {
+        this.resuming = false;
+        this.errorMessage = this.errorFor(err?.status);
+      },
+    });
+  }
+
+  onResumeEdit(): void {
+    const runId = this.interruptRunId;
+    if (!runId) return;
+    this.resuming = true;
+    this.errorMessage = null;
+    this.svc
+      .resumeSection(runId, 'edit', { rerank_top_score: this.editedScore })
+      .subscribe({
+        next: (resp) => {
+          this.resuming = false;
+          this.pendingInterrupt = null;
+          this.showEdit = false;
+          this.lastResponse = resp;
+          this.handleResponse(resp);
+        },
+        error: (err) => {
+          this.resuming = false;
+          this.errorMessage = this.errorFor(err?.status);
+        },
+      });
+  }
+
+  /** "Discard AI-draft, type manually" — abandons the paused checkpoint. */
+  onDiscard(): void {
+    const runId = this.interruptRunId;
+    if (!runId) {
+      this.pendingInterrupt = null;
+      return;
+    }
+    this.svc.abandonSection(runId).subscribe({
+      next: () => {
+        this.pendingInterrupt = null;
+        this.showEdit = false;
+        this.lastResponse = null;
+        this.emitAudit({
+          provenance: null,
+          aiRequestId: null,
+          runId: null,
+          lastGateDecision: null,
+          lastRerankTopScore: null,
+        });
+      },
+      error: (err) => {
+        this.errorMessage = this.errorFor(err?.status);
+      },
+    });
   }
 
   private isLeanBannerDismissed(): boolean {
