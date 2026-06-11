@@ -10,9 +10,15 @@ import {
 import { Router } from '@angular/router';
 import { SolicitationService } from '../../services/solicitation.service';
 import {
+  BatchPerSectionDecision,
+  DraftSectionResponse,
+  FARClauseReference,
+  PartIIClauseList,
+  PendingToolCall,
   SectionAudit,
   Solicitation,
   SolicitationCreate,
+  SolicitationDraftBundle,
   SolicitationSections,
 } from '../../models/solicitation';
 import { SectionCardComponent } from './section-card.component';
@@ -56,6 +62,34 @@ import { SectionCardComponent } from './section-card.component';
       <span class="step" *ngFor="let s of steps; let i = index"
             [class.active]="i === step"
             [class.complete]="i < step">{{ i + 1 }}. {{ s }}</span>
+    </div>
+
+    <!-- M1 Phase 3 — batch draft all AI Parts (ADR-0014). -->
+    <div class="batch-bar card" *ngIf="step > 0">
+      <button (click)="onDraftAiParts()"
+              [disabled]="batchDrafting || !isStep1ContextReady()"
+              [title]="isStep1ContextReady() ? '' : 'Complete Step 1 first'">
+        {{ batchDrafting ? 'Drafting AI Parts…' : '▦▦ Draft AI Parts (C · H · L · M)' }}
+      </button>
+      <span class="step-hint">
+        Parts I (C+H) + IV (L+M) draft in parallel; Part II clauses resolve
+        programmatically; Part III passes through wizard attachments.
+      </span>
+      <div *ngIf="batchError" class="error-text">{{ batchError }}</div>
+
+      <!-- Per-Part HITL surface: one pending panel per interrupted Part. -->
+      <div *ngIf="batchPendingInterrupts.length" class="batch-hitl">
+        <div class="gate-banner gate-banner--hitl"
+             *ngFor="let p of batchPendingInterrupts">
+          ⏸ <strong>Part {{ p.args['part'] }} pending CO decision</strong>
+          (sections {{ asList(p.args['sections']) }}) — {{ p.reason }}
+          <span class="hitl-actions" *ngIf="!batchResuming">
+            <button (click)="onBatchDecision(p, 'approve')">Approve</button>
+            <button class="secondary" (click)="onBatchDecision(p, 'reject')">Reject</button>
+          </span>
+        </div>
+        <div *ngIf="batchResuming" class="step-hint">Resuming batch…</div>
+      </div>
     </div>
 
     <!-- Step 1: Basics — reactive forms (ADR-0015 D4): 5 hard-required
@@ -198,8 +232,17 @@ import { SectionCardComponent } from './section-card.component';
         Retrieved-only from FAR Part 52 based on contract type, set-aside, and ceiling.
         Not editable per ADR-0005 D4 — clauses are authoritative as published.
       </p>
-      <div class="retrieved-clauses">
-        <strong>Resolved clauses (sample — wired to /retrieve in C9):</strong>
+      <div class="retrieved-clauses" *ngIf="resolvedClauses.length > 0">
+        <strong>Resolved clauses (Part II programmatic resolution — ADR-0014 D3):</strong>
+        <ul>
+          <li *ngFor="let c of resolvedClauses">
+            <code>{{ c.citation }}</code> — {{ c.title }}
+            <span class="step-hint">({{ c.prescription }})</span>
+          </li>
+        </ul>
+      </div>
+      <div class="retrieved-clauses" *ngIf="resolvedClauses.length === 0">
+        <strong>Resolved clauses (sample — run "Draft AI Parts" to resolve):</strong>
         <ul>
           <li><code>52.212-4</code> — Contract Terms and Conditions, Commercial Items</li>
           <li><code>52.204-21</code> — Basic Safeguarding of Covered Contractor Info Systems</li>
@@ -364,6 +407,13 @@ import { SectionCardComponent } from './section-card.component';
   `,
   styles: [`
     .step-hint { font-size: 0.85rem; color: var(--color-fg-muted); }
+    .batch-bar { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.75rem 1rem; }
+    .batch-hitl { display: flex; flex-direction: column; gap: 0.4rem; }
+    .gate-banner--hitl {
+      background: #fff8e1; color: #6d4c00; border: 1px solid #e6c352;
+      padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem;
+    }
+    .hitl-actions { display: inline-flex; gap: 0.4rem; margin-left: 0.6rem; }
     .retrieved-clauses ul { font-family: monospace; font-size: 0.85rem; }
     .consistency-warning {
       background: #fff4e5; border: 1px solid #f3c089; color: #7a3e00;
@@ -464,6 +514,106 @@ export class SolicitationWizardComponent {
   /** AI-draft buttons + Next gate read this (design ref §19.7). */
   isStep1ContextReady(): boolean {
     return this.step1Form.valid;
+  }
+
+  /** ── M1 Phase 3 — batch drafting state (ADR-0014) ── */
+  batchDrafting = false;
+  batchResuming = false;
+  batchError: string | null = null;
+  batchRunId: string | null = null;
+  batchPendingInterrupts: PendingToolCall[] = [];
+  resolvedClauses: FARClauseReference[] = [];
+
+  asList(v: unknown): string {
+    return Array.isArray(v) ? v.join(', ') : String(v ?? '');
+  }
+
+  private currentProvenances(): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    for (const s of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M']) {
+      const audit = (this.sections as any)[`section${s}Audit`] as SectionAudit | undefined;
+      out[s] = audit?.provenance ?? null;
+    }
+    return out;
+  }
+
+  onDraftAiParts(): void {
+    this.batchDrafting = true;
+    this.batchError = null;
+    const meta = this.draftMeta;
+    this.svc.draftBatch({
+      solicitation_id: this.solicitationDraftId,
+      naics: meta.naics,
+      set_aside: meta.setAside,
+      contract_type: meta.contractType,
+      agency_supplement: meta.agencySupplement,
+      user_constraints_by_section: {},
+      provenances: this.currentProvenances(),
+      part_iii_attachments: [],
+    }).subscribe({
+      next: (bundle) => {
+        this.batchDrafting = false;
+        this.applyBundle(bundle);
+      },
+      error: (err) => {
+        this.batchDrafting = false;
+        this.batchError =
+          err?.status === 422
+            ? 'Batch rejected — complete Step 1 (preflight requires full metadata).'
+            : 'Batch drafting failed; draft sections individually or retry.';
+      },
+    });
+  }
+
+  onBatchDecision(p: PendingToolCall, decision: 'approve' | 'reject'): void {
+    if (!this.batchRunId) return;
+    const sections = (p.args['sections'] as string[]) || [];
+    const decisions: BatchPerSectionDecision[] = [
+      { section_id: (sections[0] as any) ?? 'L', decision },
+    ];
+    this.batchResuming = true;
+    this.svc.resumeBatch(this.batchRunId, decisions).subscribe({
+      next: (bundle) => {
+        this.batchResuming = false;
+        this.applyBundle(bundle);
+      },
+      error: () => {
+        this.batchResuming = false;
+        this.batchError = 'Batch resume failed; retry or draft sections individually.';
+      },
+    });
+  }
+
+  /** Spread a SolicitationDraftBundle into the wizard's section state. */
+  private applyBundle(bundle: SolicitationDraftBundle): void {
+    this.batchRunId = bundle.batch_run_id;
+    this.batchPendingInterrupts =
+      bundle.overall_outcome === 'batch_interrupted' ? bundle.pending_interrupts : [];
+
+    for (const part of Object.values(bundle.parts)) {
+      if (!part) continue;
+      if (part.kind === 'llm_drafted') {
+        for (const [sid, raw] of Object.entries(part.sections)) {
+          const final = raw as DraftSectionResponse | null;
+          if (!final || typeof final !== 'object' || !('outcome' in final)) continue;
+          if (final.outcome === 'draft_returned' && final.section_text) {
+            (this.sections as any)[`section${sid}`] = final.section_text;
+            (this.sections as any)[`section${sid}Audit`] = {
+              provenance: 'ai',
+              aiRequestId: final.request_id,
+              runId: final.run_id ?? null,
+              lastEditedAt: new Date().toISOString(),
+              lastRerankTopScore: final.rerank_top_score,
+              lastGateDecision: final.gate_decision,
+            } as SectionAudit;
+          }
+        }
+      } else if (part.kind === 'programmatic_resolved') {
+        const clauseList = part.sections['I'] as PartIIClauseList | null;
+        this.resolvedClauses = clauseList?.clauses_by_reference ?? [];
+      }
+      // 'wizard_provided' (Part III) — wizard already owns Section J state.
+    }
   }
 
   /** Step 1 metadata injected into every draftSection payload (ADR-0015 D3). */

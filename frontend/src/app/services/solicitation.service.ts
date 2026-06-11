@@ -3,8 +3,11 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
+  BatchDraftRequest,
+  BatchPerSectionDecision,
   Solicitation,
   SolicitationCreate,
+  SolicitationDraftBundle,
   DraftSectionRequest,
   DraftSectionResponse,
 } from '../models/solicitation';
@@ -172,6 +175,38 @@ export class SolicitationService {
     return this.http.post<{ ok: boolean }>(
       `${environment.apiGatewayUrl}/api/ai/draft-solicitation/section/abandon`,
       { run_id: runId, reason: reason ?? null },
+      { headers },
+    );
+  }
+
+  /**
+   * Batch-draft all AI Parts (ADR-0014) — Parts I (C+H) + IV (L+M) in
+   * parallel, Part II clauses programmatic, Part III passthrough.
+   */
+  draftBatch(body: BatchDraftRequest): Observable<SolicitationDraftBundle> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<SolicitationDraftBundle>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/batch`,
+      body,
+      { headers },
+    );
+  }
+
+  /** Resume an interrupted batch run with per-section CO decisions. */
+  resumeBatch(
+    batchRunId: string,
+    decisions: BatchPerSectionDecision[],
+  ): Observable<SolicitationDraftBundle> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<SolicitationDraftBundle>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/batch/resume`,
+      { batch_run_id: batchRunId, decisions },
       { headers },
     );
   }

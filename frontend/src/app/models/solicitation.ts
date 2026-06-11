@@ -110,6 +110,62 @@ export interface DraftSectionRequest {
   constraints?: string;
 }
 
+/** ── M1 Phase 3 — batch coordinator types (ADR-0014; design ref §18.12.2) ── */
+
+export interface BatchDraftRequest {
+  solicitation_id: string;
+  naics?: string | null;
+  set_aside?: string | null;
+  contract_type?: string | null;
+  agency_supplement?: string | null;
+  user_constraints_by_section?: Record<string, string>;
+  provenances: Record<string, string | null>;
+  part_iii_attachments?: PartIIIAttachmentMeta[];
+}
+
+export interface PartIIIAttachmentMeta {
+  title: string;
+  date?: string | null;
+  page_count?: number | null;
+  filename?: string | null;
+}
+
+export interface FARClauseReference {
+  citation: string;
+  title: string;
+  prescription: string;
+}
+
+export interface PartIIClauseList {
+  clauses_by_reference: FARClauseReference[];
+  source: 'far_snapshot_index';
+  snapshot_date: string;
+  resolved_for: Record<string, string | null>;
+}
+
+export interface PartResult {
+  part: 'I' | 'II' | 'III' | 'IV';
+  kind: 'llm_drafted' | 'programmatic_resolved' | 'wizard_provided';
+  sections: Record<string, DraftSectionResponse | PartIIClauseList | PartIIIAttachmentMeta[] | null>;
+}
+
+export interface SolicitationDraftBundle {
+  solicitation_id: string;
+  parts: Partial<Record<'I' | 'II' | 'III' | 'IV', PartResult>>;
+  overall_outcome: 'batch_completed' | 'batch_interrupted';
+  consistency_report: unknown | null;
+  pending_interrupts: PendingToolCall[];
+  request_id: string;
+  batch_run_id: string;
+}
+
+export interface BatchPerSectionDecision {
+  section_id: 'C' | 'H' | 'L' | 'M';
+  decision: 'approve' | 'edit' | 'reject';
+  edited_args?: Record<string, unknown> | null;
+  reason?: string | null;
+}
+
 export interface DraftSectionCitation {
   chunk_id: string;
   text: string;
