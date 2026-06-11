@@ -17,6 +17,10 @@ langchain-aws>=1.0,<2
 langchain-mongodb>=0.5,<1
 langchain-text-splitters>=0.3,<1
 
+# M1 agentic drafting — MongoDB-backed LangGraph checkpointer (ADR-0012 D4).
+# MongoDBSaver persists paused HITL runs across multi-day CO delays.
+langgraph-checkpoint-mongodb>=0.1,<1
+
 # Bedrock / AWS
 # Bearer-token floor: 1.39.0 (support landed) / 1.39.11 (fixed cross-service
 # auth bleed). LangChain v1.0 cutover requires langchain-aws>=1.0 which itself
