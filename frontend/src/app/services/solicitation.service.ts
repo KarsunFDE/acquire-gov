@@ -5,6 +5,8 @@ import { environment } from '../../environments/environment';
 import {
   BatchDraftRequest,
   BatchPerSectionDecision,
+  ConsistencyReport,
+  CriticRequest,
   Solicitation,
   SolicitationCreate,
   SolicitationDraftBundle,
@@ -207,6 +209,22 @@ export class SolicitationService {
     return this.http.post<SolicitationDraftBundle>(
       `${environment.apiGatewayUrl}/api/ai/draft-solicitation/batch/resume`,
       { batch_run_id: batchRunId, decisions },
+      { headers },
+    );
+  }
+
+  /**
+   * Step 12 cross-section consistency critic (ADR-0013/0014) — warn-only;
+   * never blocks the FAR 5.705 publish gate.
+   */
+  critic(body: CriticRequest): Observable<ConsistencyReport> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<ConsistencyReport>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/critic`,
+      body,
       { headers },
     );
   }

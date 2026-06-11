@@ -73,3 +73,77 @@ describe('SolicitationWizardComponent (Step 1 reactive forms)', () => {
     });
   });
 });
+
+/**
+ * P4.3 — Step 12 critic render (warn-only invariant).
+ */
+describe('SolicitationWizardComponent (Step 12 critic)', () => {
+  let fixture: ComponentFixture<SolicitationWizardComponent>;
+  let component: SolicitationWizardComponent;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [SolicitationWizardComponent],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    }).compileComponents();
+    fixture = TestBed.createComponent(SolicitationWizardComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  function warnReport(): any {
+    return {
+      solicitation_id: 'sol-1',
+      run_id: 'sol-1:critic:req-1',
+      lm_alignment: {
+        mismatches: [], overall_severity: 'info',
+        model: 'amazon.nova-lite-v1:0', input_tokens: 0, output_tokens: 0,
+      },
+      set_aside_consistency: {
+        mismatches: [{
+          set_aside: 'SDVOSB', expected_reps: ['52.219-27'], actual_reps: [],
+          missing: ['52.219-27'], extra: [], severity: 'warn',
+        }],
+        overall_severity: 'warn',
+      },
+      clin_coverage: {
+        gaps: [{ clin_id: '0002', missing_in: ['F'], severity: 'warn' }],
+        overall_severity: 'warn',
+      },
+      overall_severity: 'warn',
+      blocks_submit: false,
+      model_used: 'amazon.nova-lite-v1:0',
+      timestamp: '2026-06-11T12:00:00Z',
+    };
+  }
+
+  it('renders the three sub-reports inline at Step 12', () => {
+    component.step = 11;
+    component.criticReport = warnReport();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Set-aside ↔ Section K (warn)');
+    expect(text).toContain('Section K missing 52.219-27');
+    expect(text).toContain('CLIN 0002 not referenced in Section F');
+    expect(text).toContain('L ↔ M alignment (info)');
+    expect(text).toContain('blocks_submit=false');
+  });
+
+  it('critic warnings never disable the Step 13 submit path', () => {
+    component.step = 12;
+    component.criticReport = warnReport();
+    fixture.detectChanges();
+    const submitBtn = Array.from(
+      fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>,
+    ).find((b) => b.textContent?.includes('Submit for internal review'))!;
+    expect(submitBtn).toBeDefined();
+    // Only HITL-flagged sections gate submit — critic warn alone does not.
+    expect(submitBtn.disabled).toBeFalse();
+  });
+
+  it('maps sections to wizard steps for the Fix links', () => {
+    expect(component.stepForSection('K')).toBe(8);
+    expect(component.stepForSection('F')).toBe(4);
+    expect(component.stepForSection('L')).toBe(9);
+  });
+});

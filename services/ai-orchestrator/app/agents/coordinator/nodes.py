@@ -306,9 +306,73 @@ def _stub_consistency_report(state: CoordinatorState) -> ConsistencyReport:
     )
 
 
+def _critic_sections_map(state: CoordinatorState) -> dict[str, str | None]:
+    """Flatten drafted Part sections into the critic's section_id → text map."""
+    out: dict[str, str | None] = {}
+    for part_result in state.get("part_results", []):
+        if part_result.kind != "llm_drafted":
+            continue
+        for sid, final in part_result.sections.items():
+            text = getattr(final, "section_text", None)
+            if text:
+                out[sid] = text
+    return out
+
+
 def _run_critic(state: CoordinatorState) -> ConsistencyReport:
-    """Seam — Phase 4 replaces the stub with the real critic agent."""
-    return _stub_consistency_report(state)
+    """Real critic agent invocation (Phase 4 swap — was the info stub).
+
+    Runs AFTER aggregate, batch-path mode: PartIVDrafter drafted L+M together
+    so verify_l_m_consistency verifies built-in alignment (ADR-0014 D5).
+    Falls back to the info stub when the critic agent errors — the batch
+    bundle must never fail because the warn-only critic did.
+    """
+    from app.api.critic import clamp_phase1  # noqa: PLC0415
+
+    from app.agents.critic.builder import build_consistency_critic_agent  # noqa: PLC0415
+
+    sections = _critic_sections_map(state)
+    run_id = f"{state['solicitation_id']}:critic:{state['request_id']}"
+    user = (
+        f"Run context: solicitation_id={state['solicitation_id']} run_id={run_id} "
+        f"timestamp={datetime.now(timezone.utc).isoformat()}\n"
+        f"set_aside: {state.get('set_aside') or '(none)'}\n\n"
+        + ("\n\n".join(
+            f"=== SECTION {sid} ===\n{text}" for sid, text in sorted(sections.items())
+        ) or "(no drafted sections)")
+    )
+    try:
+        agent = build_consistency_critic_agent()
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": user}]},
+            config={
+                "tags": ["m1", "consistency-critic", "batch-driven"],
+                "metadata": {
+                    "request_id": state["request_id"],
+                    "solicitation_id": state["solicitation_id"],
+                    "batch_run_id": state["batch_run_id"],
+                },
+            },
+        )
+        report: ConsistencyReport = result["structured_response"]
+        report = clamp_phase1(report.model_copy(update={
+            "run_id": run_id, "solicitation_id": state["solicitation_id"],
+            "model_used": config.BEDROCK_CRITIC_MODEL,
+        }))
+        _audit_safe(
+            action="consistency_critic",
+            tenant_id=state["tenant_id"],
+            request_id=state["request_id"],
+            outcome=report.overall_severity,
+            run_id=run_id,
+            batch_run_id=state["batch_run_id"],
+            overall_severity=report.overall_severity,
+            blocks_submit=False,
+        )
+        return report
+    except Exception as exc:  # noqa: BLE001 — warn-only critic never fails the batch
+        log.warning("batch critic failed (%s); falling back to info stub", exc)
+        return _stub_consistency_report(state)
 
 
 def _critic(state: CoordinatorState) -> dict:

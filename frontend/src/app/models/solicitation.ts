@@ -166,6 +166,69 @@ export interface BatchPerSectionDecision {
   reason?: string | null;
 }
 
+/** ── M1 Phase 4 — consistency critic types (ADR-0013 D6) ── */
+
+export type CriticSeverity = 'info' | 'warn' | 'fail';
+
+export interface LMMismatch {
+  type: 'l_without_m' | 'm_without_l' | 'weak_mapping';
+  l_instruction: string | null;
+  m_factor: string | null;
+  severity: CriticSeverity;
+  rationale: string;
+}
+
+export interface LMAlignmentReport {
+  mismatches: LMMismatch[];
+  overall_severity: CriticSeverity;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface SetAsideMismatch {
+  set_aside: string;
+  expected_reps: string[];
+  actual_reps: string[];
+  missing: string[];
+  extra: string[];
+  severity: CriticSeverity;
+}
+
+export interface SetAsideConsistencyReport {
+  mismatches: SetAsideMismatch[];
+  overall_severity: CriticSeverity;
+}
+
+export interface CLINGap {
+  clin_id: string;
+  missing_in: ('C' | 'F' | 'L')[];
+  severity: CriticSeverity;
+}
+
+export interface CLINCoverageReport {
+  gaps: CLINGap[];
+  overall_severity: CriticSeverity;
+}
+
+export interface ConsistencyReport {
+  solicitation_id: string;
+  run_id: string;
+  lm_alignment: LMAlignmentReport;
+  set_aside_consistency: SetAsideConsistencyReport;
+  clin_coverage: CLINCoverageReport;
+  overall_severity: CriticSeverity;
+  blocks_submit: boolean; // Phase 1: always false
+  model_used: string | null;
+  timestamp: string;
+}
+
+export interface CriticRequest {
+  solicitation_id: string;
+  sections: Record<string, string | null>;
+  set_aside?: string | null;
+}
+
 export interface DraftSectionCitation {
   chunk_id: string;
   text: string;

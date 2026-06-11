@@ -54,9 +54,10 @@ from app.api.abandon import router as abandon_router
 from app.api.resume import router as resume_router
 from app.sweeper import sweep_orphan_threads
 
-# M1 batch coordinator routers (ADR-0013/0014).
+# M1 batch coordinator + critic routers (ADR-0013/0014).
 from app.api.batch import router as batch_router
 from app.api.batch_resume import router as batch_resume_router
+from app.api.critic import router as critic_router
 
 # ⚠ DELIBERATE — no correlation-ID in the log format (Item 6).
 logging.basicConfig(
@@ -105,6 +106,7 @@ app.include_router(resume_router)
 app.include_router(abandon_router)
 app.include_router(batch_router)
 app.include_router(batch_resume_router)
+app.include_router(critic_router)
 
 
 class DraftRequest(BaseModel):

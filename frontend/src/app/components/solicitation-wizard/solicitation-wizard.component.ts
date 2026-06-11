@@ -11,6 +11,7 @@ import { Router } from '@angular/router';
 import { SolicitationService } from '../../services/solicitation.service';
 import {
   BatchPerSectionDecision,
+  ConsistencyReport,
   DraftSectionResponse,
   FARClauseReference,
   PartIIClauseList,
@@ -311,23 +312,77 @@ import { SectionCardComponent } from './section-card.component';
       </app-section-card>
     </div>
 
-    <!-- Step 12: Review + cross-section consistency check -->
+    <!-- Step 12: Review + cross-section consistency check (M1 Phase 4 —
+         critic agent; warn-only, never blocks the FAR 5.705 publish gate). -->
     <div class="card" *ngIf="step === 11">
       <h3>12. Review + cross-section consistency</h3>
       <p class="step-hint">
-        FAR 15.204-5: instructions in Section L must align with evaluation factors
-        in Section M. Warn-only structural check (Phase 1 heuristic; full check is
-        an open item — see spec §17).
+        Consistency critic (ADR-0013/0014): L↔M alignment (LLM), set-aside ↔
+        Section K reps (programmatic), CLIN coverage B↔C↔F↔L (programmatic).
+        Warn-only — Step 13 publish gating belongs to the CO, not the critic.
       </p>
-      <div *ngIf="consistencyWarnings.length > 0" class="consistency-warning">
-        <strong>Possible misalignment:</strong>
-        <ul>
-          <li *ngFor="let w of consistencyWarnings">{{ w }}</li>
-        </ul>
+
+      <div *ngIf="criticLoading" class="step-hint">Running consistency critic…</div>
+      <div *ngIf="criticError" class="consistency-warning">
+        {{ criticError }} Falling back to the local heuristic:
+        <ul><li *ngFor="let w of consistencyWarnings">{{ w }}</li></ul>
       </div>
-      <div *ngIf="consistencyWarnings.length === 0" class="consistency-ok">
-        No obvious L↔M misalignment detected (heuristic).
-      </div>
+
+      <ng-container *ngIf="criticReport && !criticLoading">
+        <!-- L↔M alignment -->
+        <div [ngClass]="criticReport.lm_alignment.overall_severity === 'info' ? 'consistency-ok' : 'consistency-warning'">
+          <strong>L ↔ M alignment ({{ criticReport.lm_alignment.overall_severity }}):</strong>
+          <span *ngIf="criticReport.lm_alignment.mismatches.length === 0"> aligned ✓</span>
+          <ul *ngIf="criticReport.lm_alignment.mismatches.length > 0">
+            <li *ngFor="let m of criticReport.lm_alignment.mismatches">
+              [{{ m.severity }}] {{ m.type }} — {{ m.rationale }}
+              <button class="secondary fix-link" (click)="step = 9">Fix Section L →</button>
+              <button class="secondary fix-link" (click)="step = 10">Fix Section M →</button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Set-aside ↔ Section K -->
+        <div [ngClass]="criticReport.set_aside_consistency.overall_severity === 'info' ? 'consistency-ok' : 'consistency-warning'">
+          <strong>Set-aside ↔ Section K ({{ criticReport.set_aside_consistency.overall_severity }}):</strong>
+          <span *ngIf="criticReport.set_aside_consistency.mismatches.length === 0"> consistent ✓</span>
+          <ul *ngIf="criticReport.set_aside_consistency.mismatches.length > 0">
+            <li *ngFor="let m of criticReport.set_aside_consistency.mismatches">
+              <span *ngIf="m.missing.length">
+                {{ m.set_aside }}: Section K missing {{ m.missing.join(', ') }}
+                <button class="secondary fix-link" (click)="step = 8">Fix Section K →</button>
+              </span>
+              <span *ngIf="!m.missing.length && m.extra.length">
+                extra reps beyond {{ m.set_aside }} requirement: {{ m.extra.join(', ') }}
+              </span>
+              <span *ngIf="!m.missing.length && !m.extra.length">
+                {{ m.set_aside }} reps consistent ✓
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- CLIN coverage -->
+        <div [ngClass]="criticReport.clin_coverage.overall_severity === 'info' ? 'consistency-ok' : 'consistency-warning'">
+          <strong>CLIN coverage B↔C↔F↔L ({{ criticReport.clin_coverage.overall_severity }}):</strong>
+          <span *ngIf="criticReport.clin_coverage.gaps.length === 0"> all CLINs referenced ✓</span>
+          <ul *ngIf="criticReport.clin_coverage.gaps.length > 0">
+            <li *ngFor="let g of criticReport.clin_coverage.gaps">
+              <span *ngIf="g.clin_id !== '<n/a>'">
+                [{{ g.severity }}] CLIN {{ g.clin_id }} not referenced in Section{{ g.missing_in.length > 1 ? 's' : '' }} {{ g.missing_in.join(', ') }}
+                <button class="secondary fix-link" *ngFor="let s of g.missing_in"
+                        (click)="step = stepForSection(s)">Fix Section {{ s }} →</button>
+              </span>
+              <span *ngIf="g.clin_id === '<n/a>'">Section B empty — CLIN check skipped.</span>
+            </li>
+          </ul>
+        </div>
+
+        <p class="step-hint">
+          Critic run {{ criticReport.run_id }} · overall {{ criticReport.overall_severity }} ·
+          blocks_submit={{ criticReport.blocks_submit }} (Phase 1 invariant: always false)
+        </p>
+      </ng-container>
 
       <table style="margin-top:0.75rem">
         <tbody>
@@ -414,6 +469,7 @@ import { SectionCardComponent } from './section-card.component';
       padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem;
     }
     .hitl-actions { display: inline-flex; gap: 0.4rem; margin-left: 0.6rem; }
+    .fix-link { font-size: 0.75rem; padding: 0.05rem 0.4rem; margin-left: 0.4rem; }
     .retrieved-clauses ul { font-family: monospace; font-size: 0.85rem; }
     .consistency-warning {
       background: #fff4e5; border: 1px solid #f3c089; color: #7a3e00;
@@ -638,6 +694,44 @@ export class SolicitationWizardComponent {
 
   next(): void {
     if (this.step < this.steps.length - 1) this.step++;
+    // Step 12 (index 11) auto-invokes the consistency critic (P4.3).
+    if (this.step === 11) this.runCritic();
+  }
+
+  /** ── M1 Phase 4 — Step 12 consistency critic state ── */
+  criticLoading = false;
+  criticError: string | null = null;
+  criticReport: ConsistencyReport | null = null;
+
+  stepForSection(s: string): number {
+    const map: Record<string, number> = {
+      A: 1, B: 2, C: 3, D: 4, E: 4, F: 4, G: 4, H: 5, J: 7, K: 8, L: 9, M: 10,
+    };
+    return map[s] ?? 11;
+  }
+
+  runCritic(): void {
+    this.criticLoading = true;
+    this.criticError = null;
+    const sections: Record<string, string | null> = {};
+    for (const s of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M']) {
+      sections[s] = ((this.sections as any)[`section${s}`] as string | undefined) || null;
+    }
+    this.svc.critic({
+      solicitation_id: this.solicitationDraftId,
+      sections,
+      set_aside: this.step1Form.value.setAside || null,
+    }).subscribe({
+      next: (report) => {
+        this.criticLoading = false;
+        this.criticReport = report;
+      },
+      error: () => {
+        this.criticLoading = false;
+        this.criticReport = null;
+        this.criticError = 'Consistency critic unavailable.';
+      },
+    });
   }
 
   /** Human-edited text-only section: spec §5 null→human; subsequent edits preserve provenance. */

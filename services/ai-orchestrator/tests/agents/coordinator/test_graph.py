@@ -88,6 +88,9 @@ def env(monkeypatch):
     }
     monkeypatch.setattr(nodes_mod, "_build_part_agent", lambda part: children[part])
     monkeypatch.setattr(audit_mod, "write_audit_log", lambda *a, **k: "id")
+    # Pin the critic node to the deterministic stub — the real critic agent
+    # (Phase 4) is covered by tests/agents/critic/ + tests/api/test_critic.py.
+    monkeypatch.setattr(nodes_mod, "_run_critic", nodes_mod._stub_consistency_report)
     monkeypatch.setattr(graph_mod, "build_mongodb_saver", lambda: InMemorySaver())
     graph_mod.build_coordinator_graph.cache_clear()
     yield children
