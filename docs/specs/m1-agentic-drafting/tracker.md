@@ -13,7 +13,7 @@ Design reference: [`m1-agentic-drafting/design-reference.md`](./design-reference
 | # | Title                              | Status      | Started    | Completed | Branch           | Vertical slice? |
 |---|------------------------------------|-------------|------------|-----------|------------------|-----------------|
 | 0 | Foundation                         | completed   | 2026-06-11 | 2026-06-11 | cj/m1-langchain-integration | no (backend-only setup) |
-| 1 | Single-section happy path          | not_started | —          | —         | —                | **yes** — CO clicks AI-draft Section C, sees grounded draft + citations |
+| 1 | Single-section happy path          | completed   | 2026-06-11 | 2026-06-11 | cj/m1-langchain-integration | **yes** — CO clicks AI-draft Section C, sees grounded draft + citations |
 | 2 | HITL interrupt + resume + abandon  | not_started | —          | —         | —                | **yes** — low-confidence draft pauses; CO resumes; completes |
 | 3 | Batch coordinator (per-AI-Part)    | not_started | —          | —         | —                | **yes** — CO clicks "Draft AI Parts"; 4 sections + Part II clauses + Part III metadata in one response |
 | 4 | Consistency critic                 | not_started | —          | —         | —                | **yes** — Step 12 critic warnings render before submit |

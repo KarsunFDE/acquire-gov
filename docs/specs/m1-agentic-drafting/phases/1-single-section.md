@@ -89,58 +89,58 @@ P1.1, P1.2, P1.3, P1.5 can all run in parallel after Phase 0. P1.4 + P1.6 requir
 
 ### P1.1 — Preflight
 
-- [ ] `app/api/preflight.py` with `PreflightResult` Pydantic + `preflight_single_section` + `preflight_batch` (batch fn lives here even though /batch lands in Phase 3 — keeps the policy collocated).
-- [ ] `tests/api/test_preflight.py`:
-  - [ ] section_id=C without naics → 422 with `missing_required=["naics", ...]`.
-  - [ ] section_id=L without naics → 200 with `degraded_context=["naics"]`.
-  - [ ] All hard-required present → ready=True.
-  - [ ] Tenant ID missing → 422.
+- [x] `app/api/preflight.py` with `PreflightResult` Pydantic + `preflight_single_section` + `preflight_batch` (batch fn lives here even though /batch lands in Phase 3 — keeps the policy collocated).
+- [x] `tests/api/test_preflight.py`:
+  - [x] section_id=C without naics → 422 with `missing_required=["naics", ...]`.
+  - [x] section_id=L without naics → 200 with `degraded_context=["naics"]`.
+  - [x] All hard-required present → ready=True.
+  - [x] Tenant ID missing → 422.
 
 ### P1.2 — Programmatic tools
 
-- [ ] `app/agents/tools/__init__.py` exports the 4 tools.
-- [ ] `app/agents/tools/retrieve_far.py` — wraps M2 `build_far_retriever` + `rerank_only` (new thin function split from `rerank_and_gate` per spec §8.1.1).
-- [ ] `app/agents/tools/retrieve_related.py` — null-arg short-circuit returns empty list with zero Mongo cost.
-- [ ] `app/agents/tools/gate.py` — uses `config.GATE_*_THRESHOLD` via `gate_thresholds()` helper.
-- [ ] `app/agents/tools/validate.py` — thin wrapper around `app/citations.py::verify_citations`.
-- [ ] Per-tool unit tests; gate threshold boundary tests.
-- [ ] Tenant-isolation regression: `tests/test_retrieval_tenant_isolation.py` extended with a `req_rag_3` test that asserts the tool can't bypass `build_far_retriever`'s tenant pre-filter.
+- [x] `app/agents/tools/__init__.py` exports the 4 tools.
+- [x] `app/agents/tools/retrieve_far.py` — wraps M2 `build_far_retriever` + `rerank_only` (new thin function split from `rerank_and_gate` per spec §8.1.1).
+- [x] `app/agents/tools/retrieve_related.py` — null-arg short-circuit returns empty list with zero Mongo cost.
+- [x] `app/agents/tools/gate.py` — uses `config.GATE_*_THRESHOLD` via `gate_thresholds()` helper.
+- [x] `app/agents/tools/validate.py` — thin wrapper around `app/citations.py::verify_citations`.
+- [x] Per-tool unit tests; gate threshold boundary tests.
+- [x] Tenant-isolation regression: `tests/test_retrieval_tenant_isolation.py` extended with a `req_rag_3` test that asserts the tool can't bypass `build_far_retriever`'s tenant pre-filter.
 
 ### P1.3 — LLM tools
 
-- [ ] `app/agents/tools/extract_requirements.py` with retry logic per spec §8.3.
-- [ ] `app/agents/tools/draft.py` — single-section variant (takes `section_id: str`); multi-section variant deferred to Phase 3.
-- [ ] Stubbed-LLM unit tests using `unittest.mock` against `langchain_aws.ChatBedrockConverse`.
+- [x] `app/agents/tools/extract_requirements.py` with retry logic per spec §8.3.
+- [x] `app/agents/tools/draft.py` — single-section variant (takes `section_id: str`); multi-section variant deferred to Phase 3.
+- [x] Stubbed-LLM unit tests using `unittest.mock` against `langchain_aws.ChatBedrockConverse`.
 
 ### P1.4 — Builder + handler
 
-- [ ] `app/agents/prompts.py::SECTION_DRAFTING_SYSTEM_PROMPT`.
-- [ ] `app/agents/middleware/hitl_gate.py` — module exists; predicate written; **for Phase 1 the predicate's return is always False** (no interrupts fire). Phase 2 lights it up.
-- [ ] `app/agents/builder.py::build_section_drafter_agent()`.
-- [ ] `app/api/draft.py` rewrite per spec §4.1 + §19.3 (preflight → guardrails → agent → audit).
-- [ ] `app/audit.py::_build_record` extended to accept optional `tool_calls: list[ToolCallRecord]`.
-- [ ] `app/api/draft.py` integration tests with stubbed Bedrock; assert `outcome="draft_returned"` + citations + audit row.
+- [x] `app/agents/prompts.py::SECTION_DRAFTING_SYSTEM_PROMPT`.
+- [x] `app/agents/middleware/hitl_gate.py` — module exists; predicate written; **for Phase 1 the predicate's return is always False** (no interrupts fire). Phase 2 lights it up.
+- [x] `app/agents/builder.py::build_section_drafter_agent()`.
+- [x] `app/api/draft.py` rewrite per spec §4.1 + §19.3 (preflight → guardrails → agent → audit).
+- [x] `app/audit.py::_build_record` extended to accept optional `tool_calls: list[ToolCallRecord]`.
+- [x] `app/api/draft.py` integration tests with stubbed Bedrock; assert `outcome="draft_returned"` + citations + audit row.
 
 ### P1.5 — Frontend Step 1 reactive forms
 
-- [ ] `frontend/src/app/components/solicitation-wizard/solicitation-wizard.component.ts` migrates Step 1 from `[(ngModel)]` to `FormGroup` per spec §19.7.
-- [ ] Add `Validators.required` to 5 fields: title, agencyId, naics, setAside, contractType.
-- [ ] Next button at line 304 gets `[disabled]="!step1Form.valid"`.
-- [ ] `solicitation-wizard.component.spec.ts` — step1Form.valid=false → Next disabled.
+- [x] `frontend/src/app/components/solicitation-wizard/solicitation-wizard.component.ts` migrates Step 1 from `[(ngModel)]` to `FormGroup` per spec §19.7.
+- [x] Add `Validators.required` to 5 fields: title, agencyId, naics, setAside, contractType.
+- [x] Next button at line 304 gets `[disabled]="!step1Form.valid"`.
+- [x] `solicitation-wizard.component.spec.ts` — step1Form.valid=false → Next disabled.
 
 ### P1.6 — Frontend section-card + service
 
-- [ ] `section-card.component.ts` gains `@Input() step1Ready: boolean`.
-- [ ] AI-draft button at line 71 gets `[disabled]="drafting || !step1Ready"`.
-- [ ] `solicitation.service.ts::draftSection` body extended with `naics`, `set_aside`, `contract_type`, `agency_supplement` from the wizard's Step 1 form state.
-- [ ] `section-card` renders inline warn banner when `lastResponse.degraded_context.length > 0`.
-- [ ] Parent wizard passes `[step1Ready]="isStep1ContextReady()"` on every section-card.
-- [ ] `section-card.component.spec.ts` — `step1Ready=false` → button disabled with tooltip; `step1Ready=true` → enabled.
+- [x] `section-card.component.ts` gains `@Input() step1Ready: boolean`.
+- [x] AI-draft button at line 71 gets `[disabled]="drafting || !step1Ready"`.
+- [x] `solicitation.service.ts::draftSection` body extended with `naics`, `set_aside`, `contract_type`, `agency_supplement` from the wizard's Step 1 form state.
+- [x] `section-card` renders inline warn banner when `lastResponse.degraded_context.length > 0`.
+- [x] Parent wizard passes `[step1Ready]="isStep1ContextReady()"` on every section-card.
+- [x] `section-card.component.spec.ts` — `step1Ready=false` → button disabled with tooltip; `step1Ready=true` → enabled.
 
 ### P1.7 — End-to-end smoke
 
-- [ ] Smoke script `services/ai-orchestrator/scripts/m1_p1_smoke.sh` that runs the curl from spec §16 (single-section happy path) and asserts the response shape with `jq`.
-- [ ] Document the script in `m2-grounded-retrieval/handoff.md` (or new `m1-handoff.md`) so the next session can run it.
+- [x] Smoke script `services/ai-orchestrator/scripts/m1_p1_smoke.sh` that runs the curl from spec §16 (single-section happy path) and asserts the response shape with `jq`.
+- [x] Document the script in `m2-grounded-retrieval/handoff.md` (or new `m1-handoff.md`) so the next session can run it.
 
 ## 8. In-progress checklist (crash recovery)
 
@@ -155,4 +155,12 @@ See tracker §4 Phase 1. All boxes checked.
 
 ## 10. Handoff notes
 
-(empty)
+**2026-06-11 (Phase 1 complete on `cj/m1-langchain-integration`):**
+
+- All P1.1–P1.7 tasks landed in one branch (no per-PR branches — single-session implementation).
+- Local dev env upgraded to langchain 1.3.7 (was 0.3.7); `langgraph-checkpoint-mongodb` installed.
+- Handler keeps a credential-free stub path (`_stub_run`) per CLAUDE.md D-060 — retrieval+rerank+gate run real, generation stubbed.
+- HITL middleware structurally present; `HITL_INTERRUPTS_ENABLED=False` until Phase 2 (predicate logic final).
+- Frontend: karma test target + tsconfig.spec.json added (repo had no test target); 9 specs green via `npx ng test --watch=false --browsers=ChromeHeadless`. Bundle 482.5 kB (+~11 kB over M2 baseline; ReactiveFormsModule).
+- Exit-gate items needing real Bedrock + seeded corpus (LangSmith trace, live `outcome="draft_returned"`) are runnable via `services/ai-orchestrator/scripts/m1_p1_smoke.sh` — NOT yet executed against live stack in this session.
+- M2 test file `test_draft_section_endpoint.py` rewritten to M1 contract (hitl_pending removed per design ref §14.1).
