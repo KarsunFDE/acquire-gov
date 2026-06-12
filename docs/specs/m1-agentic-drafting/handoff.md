@@ -1,8 +1,8 @@
 # M1 close-out handoff (P5.4)
 
-**Date:** 2026-06-11 · **Branch:** `cj/m1-langchain-integration` · **Status:** all 6 phases completed (tracker §1).
+**Date:** 2026-06-11 (updated 2026-06-12) · **Branch:** `cj/m1-langchain-integration` · **Status:** all 6 phases completed (tracker §1).
 
-Session pickup order for Phase 1.5 / M3 work: this file → [`tracker.md`](./tracker.md) §1 → the relevant phase spec's "Handoff notes" §10.
+Session pickup order: **§7 (next-session checklist)** → [`tracker.md`](./tracker.md) §1 → the relevant phase spec's "Handoff notes" §10.
 
 ---
 
@@ -73,3 +73,54 @@ LangSmith trace shapes: [`langsmith-trace-reference.md`](./langsmith-trace-refer
 - Schema round-trip tests live in one parametrized module (`tests/agents/schemas/`) rather than per-model files — same coverage (35 models).
 - Frontend karma stack + `test` target added (repo previously had no runner); `tsconfig.app.json` now excludes `*.spec.ts`.
 - Coordinator interrupt protocol adapted to langgraph 1.x: children RETURN `__interrupt__` (no GraphInterrupt raise); parent nodes call `interrupt()` themselves with replay-safe child-state detection (phase 3 spec §10 has details).
+
+## 7. Next-session pickup checklist (written 2026-06-12)
+
+**Git state at handoff:** `cj/m1-langchain-integration` @ `4437bc7`, 12 commits ahead of `main` (base `f476e36`). Working tree clean except untracked session tooling (`.agents/`, `.claude/`, `.githooks/`, `skills-lock.json`) — not M1 work; leave them.
+
+Work through in order; stop anywhere — each step is independently committable.
+
+### 7.1 Live verification (the only unchecked exit-gate boxes)
+
+Everything below is code-complete but never run against the live stack. Needs: `docker-compose -f infra/docker/docker-compose.yml up --build`, seeded corpus (M2 baseline), `AWS_BEARER_TOKEN_BEDROCK` set in the repo-root env file (template: `.env.example`).
+
+```bash
+cd services/ai-orchestrator
+# 1. Mongo-gated tests stop auto-skipping once atlas-local is up:
+python -m pytest tests/agents/test_checkpointer.py tests/api/test_pause_restart.py -v
+# 2. Smokes, in dependency order:
+./scripts/m1_p1_smoke.sh          # /section happy path + preflight 422
+./scripts/m1_p3_smoke.sh          # /batch fan-out (+ resume when interrupted)
+./scripts/m1_p4_critic_smoke.sh   # /critic fixture warnings
+./scripts/m1_p4_batch_critic_smoke.sh
+./scripts/m1_e2e_smoke.sh         # Phases 1-4 in one run + audit join check
+# 3. LangSmith span order (LANGSMITH_TRACING=true + LANGSMITH_API_KEY):
+#    verify against langsmith-trace-reference.md — part_i/part_iv parallel
+#    siblings; critic AFTER aggregate; no draft before gate.
+```
+
+Then tick the corresponding tracker §4 exit-gate boxes (P1: live `draft_returned` + LangSmith run name; P2: container-restart resume; P3: parallel-sibling spans; P4: critic-after-aggregate span; P5: e2e smoke) — one `docs(tracker)` commit.
+
+**Likely first failures to expect:**
+- `/section` live run depends on the M2 seeded corpus producing rerank scores ≥ 0.55 — lean-corpus L/M sections may interrupt or withhold. That is correct gate behavior, not a bug; use `/section/resume` (or the wizard panel) to complete.
+- `/resume` tenant check reads `snapshot.metadata.tenant_id` — verify langgraph actually persists invoke-config metadata into checkpoint metadata on the live MongoDBSaver. If absent, the check falls open (documented in phase-2 spec §10) and needs a fix before declaring ADR-0012 D8.1 done.
+
+### 7.2 Merge / PR
+
+- Target branch decision is OPEN: `main` (repo PR convention) vs. stacking on `cj/m2-integration` (where the 21 M2 PRs live unmerged). Check `git branch -a` + ask the user before opening anything.
+- A PR will trigger: `rag-eval-gate` (now path-matches `app/agents/**` + `app/api/**`; req_aid_1 + record-only metric steps run without creds), `debt-enforcement` (no lockfile changes made — passes clean), `pr-summary-check`.
+- PR-template debt checkbox: the NO branch (no locked items touched).
+
+### 7.3 Known loose ends (small, non-blocking)
+
+- `eval/run_m1_metrics.py` agent-run metrics read `eval/results/m1_agent_runs.jsonl` — no harvester writes that file yet. Phase 1.5 candidate: extract run records from audit rows (`generation.tool_calls`) or a LangSmith export.
+- Frontend bundle grew 471 → 498.6 kB across M1 (reactive forms + batch/critic UI). Within reason; relevant if anyone re-checks the F1 ±10 kB guideline.
+- `solicitation.service.ts` `useMockAI` flipped to `false` — the wizard now requires gateway + orchestrator up; backend-less demo needs `svc.useMockAI = true` from the browser console.
+- Per-PR branch flow was collapsed into the single integration branch; if the instructor workflow needs the 27-PR shape, cherry-pick by commit (each phase = one feat commit + one tracker commit).
+
+### 7.4 Fast context reload (cold session)
+
+1. Read this file top to bottom (~3 min).
+2. `git log --oneline f476e36..HEAD` — 13 commits: 6 feat + 6 tracker (one pair per phase) + this handoff update.
+3. Only if touching a specific subsystem: that phase spec's §10 handoff notes, then the design-reference section it cites.
+4. Memory file `project_m1_agentic_design.md` mirrors this state.
