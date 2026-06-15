@@ -52,6 +52,26 @@ Endpoint-level curls: design-reference §16 (`/section`, `/section/resume`, `/se
 
 LangSmith trace shapes: [`langsmith-trace-reference.md`](./langsmith-trace-reference.md).
 
+## 4.5 KNOWN ISSUE — critic agent loops on Nova Lite (2026-06-12)
+
+- **Symptom:** consistency-critic agent re-emits the SAME three tool calls every model
+  turn (verified byte-identical turn 0 vs 60 in LangSmith), never calls the
+  ToolStrategy final-output tool. One runaway run: 98 model turns / 291 tool execs /
+  2.8M tokens before manual kill.
+- **Why unbounded:** langchain 1.3.8 `create_agent` binds `recursion_limit: 9_999`
+  on the compiled graph (langgraph issue #7313) — the langgraph default of 25 never
+  applies.
+- **Containment shipped:** `CRITIC_RECURSION_LIMIT` (default 3, env-tunable) passed
+  at both invoke sites; call-time config overrides the bound 9_999. On failure both
+  paths degrade to a `critic_skipped=true` / `overall_severity=warn` report with
+  `skip_reason` caveat (never 500s, never blocks). Wizard Step 12 renders a
+  "Consistency critic did not run — review manually" banner; smokes print
+  GREEN-with-caveat.
+- **Candidate real fixes (deferred):** after-model middleware forcing
+  `tool_choice=ConsistencyReport` once all three tool results are present;
+  programmatic tool orchestration (drop the agent loop); or Sonnet harness
+  (`BEDROCK_CRITIC_MODEL` flip — rejected for now on cost).
+
 ## 5. Phase 1.5 / M3 trigger list
 
 | Trigger | Where it lands |
