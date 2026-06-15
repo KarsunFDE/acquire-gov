@@ -11,6 +11,11 @@ export interface Solicitation {
   setAside?: '' | 'SDVOSB' | 'WOSB' | 'HUBZONE' | '8A' | 'SMALL_BUSINESS' | 'FULL_AND_OPEN';
   contractType?: 'FFP' | 'CPFF' | 'T_AND_M' | 'IDIQ' | 'BPA';
   ceilingValue?: number;
+  /** DEMO-REDESIGN-spec §4 — richer draft context (drives C/F/L/M). */
+  periodOfPerformance?: string;
+  placeOfPerformance?: string;
+  evalApproach?: 'LPTA' | 'TRADEOFF';
+  keyPersonnel?: string;
   /** Solicitation type per FAR Subpart 15.2 / SAM.gov categories. */
   noticeType?: 'RFI' | 'SOURCES_SOUGHT' | 'RFP' | 'RFQ' | 'COMBINED_SYNOPSIS';
   /** Section content keyed by FAR 15.204 part: A through M (skipping I per convention). */
@@ -75,6 +80,11 @@ export interface SolicitationCreate {
   /** Agency FAR supplement (e.g., GSAM, DFARS) — soft-required draft context (ADR-0015 D3). */
   agencySupplement?: string;
   ceilingValue?: number;
+  /** DEMO-REDESIGN-spec §4 — richer draft context. */
+  periodOfPerformance?: string;
+  placeOfPerformance?: string;
+  evalApproach?: string;
+  keyPersonnel?: string;
   noticeType?: string;
   sections?: SolicitationSections;
   proposalsDueAt?: string;
@@ -118,6 +128,11 @@ export interface BatchDraftRequest {
   set_aside?: string | null;
   contract_type?: string | null;
   agency_supplement?: string | null;
+  /** DEMO-REDESIGN-spec §4 — optional richer context. */
+  period_of_performance?: string | null;
+  place_of_performance?: string | null;
+  eval_approach?: string | null;
+  key_personnel?: string | null;
   user_constraints_by_section?: Record<string, string>;
   provenances: Record<string, string | null>;
   part_iii_attachments?: PartIIIAttachmentMeta[];
@@ -221,6 +236,10 @@ export interface ConsistencyReport {
   blocks_submit: boolean; // Phase 1: always false
   model_used: string | null;
   timestamp: string;
+  /** Known issue: critic model loops; backend returns a skipped report
+   *  instead of failing. CO must review manually when true. */
+  critic_skipped?: boolean;
+  skip_reason?: string | null;
 }
 
 export interface CriticRequest {

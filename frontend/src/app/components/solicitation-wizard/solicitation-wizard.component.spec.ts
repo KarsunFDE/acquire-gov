@@ -64,12 +64,20 @@ describe('SolicitationWizardComponent (Step 1 reactive forms)', () => {
       setAside: 'SDVOSB',
       contractType: 'FFP',
       agencySupplement: '',
+      periodOfPerformance: '',
+      placeOfPerformance: '',
+      evalApproach: 'LPTA',
+      keyPersonnel: '',
     });
     expect(component.draftMeta).toEqual({
       naics: '541512',
       setAside: 'SDVOSB',
       contractType: 'FFP',
       agencySupplement: null,
+      periodOfPerformance: null,
+      placeOfPerformance: null,
+      evalApproach: 'LPTA',
+      keyPersonnel: null,
     });
   });
 });

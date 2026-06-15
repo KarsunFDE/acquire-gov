@@ -142,7 +142,26 @@ import { SectionCardComponent } from './section-card.component';
           <label><span class="label-text">Ceiling ($)</span>
             <input type="number" formControlName="ceilingValue"/>
           </label>
+          <label><span class="label-text">Period of performance</span>
+            <input formControlName="periodOfPerformance" placeholder="12-mo base + four 12-mo options"/>
+          </label>
+          <label><span class="label-text">Place of performance</span>
+            <input formControlName="placeOfPerformance" placeholder="Washington, DC (hybrid / remote-eligible)"/>
+          </label>
+          <label><span class="label-text">Evaluation approach</span>
+            <select formControlName="evalApproach">
+              <option value="TRADEOFF">Best-value tradeoff</option>
+              <option value="LPTA">Lowest-Price Technically Acceptable</option>
+            </select>
+          </label>
+          <label><span class="label-text">Key personnel required</span>
+            <input formControlName="keyPersonnel" placeholder="e.g., Program Manager, Lead Engineer (or leave blank)"/>
+          </label>
         </div>
+        <p class="step-hint">
+          Period/place/eval-approach/key-personnel are optional but sharpen the
+          AI drafts (F, C, L, M) — DEMO-REDESIGN-spec §4.
+        </p>
         <label><span class="label-text">Description (public-facing)</span>
           <textarea rows="4" formControlName="description"
                     placeholder="Public solicitation description (rendered raw — see Debt Item 9)"></textarea>
@@ -329,6 +348,12 @@ import { SectionCardComponent } from './section-card.component';
       </div>
 
       <ng-container *ngIf="criticReport && !criticLoading">
+        <!-- Known issue: critic agent loops (Nova Lite) — backend sends a
+             skipped report; CO must hand-review before publish. -->
+        <div *ngIf="criticReport.critic_skipped" class="consistency-warning critic-skipped-banner">
+          <strong>⚠ Consistency critic did not run.</strong>
+          {{ criticReport.skip_reason }}
+        </div>
         <!-- L↔M alignment -->
         <div [ngClass]="criticReport.lm_alignment.overall_severity === 'info' ? 'consistency-ok' : 'consistency-warning'">
           <strong>L ↔ M alignment ({{ criticReport.lm_alignment.overall_severity }}):</strong>
@@ -383,6 +408,32 @@ import { SectionCardComponent } from './section-card.component';
           blocks_submit={{ criticReport.blocks_submit }} (Phase 1 invariant: always false)
         </p>
       </ng-container>
+
+      <!-- DEMO-REDESIGN-spec §6 — full editable review: every section A–M is
+           readable + editable here, the main review surface for generate-and-review. -->
+      <h4 style="margin-top:1rem">All sections — review &amp; edit</h4>
+      <p class="step-hint">
+        Generate-and-review: the AI drafted what it safely could; edit any section
+        below before submit. AI-drafted sections show a provenance badge.
+      </p>
+      <div *ngFor="let s of reviewSections" class="review-section">
+        <label>
+          <span class="label-text">
+            Section {{ s.letter }} — {{ s.title }}
+            <span class="prov-badge" [attr.data-prov]="provenanceFor(s.letter)">{{ provenanceFor(s.letter) }}</span>
+          </span>
+          <textarea rows="6" [ngModel]="sectionText(s.letter)" [ngModelOptions]="{standalone: true}"
+                    (ngModelChange)="onHumanEdit(s.letter, $event)"
+                    [placeholder]="'Section ' + s.letter + ' — empty; type or run Draft AI Parts'"></textarea>
+        </label>
+      </div>
+      <div class="review-section">
+        <span class="label-text">Section I — Contract Clauses (Part II, retrieved-only)</span>
+        <p class="step-hint" *ngIf="resolvedClauses.length">
+          {{ resolvedClauses.length }} clause(s) resolved programmatically (see Step 7) — not editable.
+        </p>
+        <p class="step-hint" *ngIf="!resolvedClauses.length">Resolves on "Draft AI Parts".</p>
+      </div>
 
       <table style="margin-top:0.75rem">
         <tbody>
@@ -483,6 +534,16 @@ import { SectionCardComponent } from './section-card.component';
       background: #fdecea; border: 1px solid #f4a09b; color: #8b1a17;
       padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem;
     }
+    .review-section { margin: 0.6rem 0; }
+    .review-section textarea { width: 100%; font-family: inherit; }
+    .prov-badge {
+      font-size: 0.7rem; padding: 0.05rem 0.4rem; border-radius: 10px;
+      margin-left: 0.4rem; vertical-align: middle; text-transform: uppercase;
+      background: #eee; color: #555;
+    }
+    .prov-badge[data-prov="ai"] { background: #e3f0ff; color: #1457a8; }
+    .prov-badge[data-prov="ai-edited"] { background: #fff3d6; color: #8a5a00; }
+    .prov-badge[data-prov="human"] { background: #e9f7ec; color: #1b5e20; }
     .modal-backdrop {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.45);
@@ -535,6 +596,10 @@ export class SolicitationWizardComponent {
     agencySupplement: '',
     noticeType: 'RFP',
     ceilingValue: undefined,
+    periodOfPerformance: '',
+    placeOfPerformance: '',
+    evalApproach: 'TRADEOFF',
+    keyPersonnel: '',
   };
 
   /** Step 1 reactive form (ADR-0015 D4) — 5 hard-required fields. */
@@ -560,6 +625,10 @@ export class SolicitationWizardComponent {
       agencySupplement: [''],
       noticeType: ['RFP'],
       ceilingValue: [null],
+      periodOfPerformance: [''],
+      placeOfPerformance: [''],
+      evalApproach: ['TRADEOFF'],
+      keyPersonnel: [''],
       description: [''],
     });
     // Keep the legacy `model` object in sync — review table + submit payload
@@ -603,6 +672,10 @@ export class SolicitationWizardComponent {
       set_aside: meta.setAside,
       contract_type: meta.contractType,
       agency_supplement: meta.agencySupplement,
+      period_of_performance: meta.periodOfPerformance,
+      place_of_performance: meta.placeOfPerformance,
+      eval_approach: meta.evalApproach,
+      key_personnel: meta.keyPersonnel,
       user_constraints_by_section: {},
       provenances: this.currentProvenances(),
       part_iii_attachments: [],
@@ -678,6 +751,10 @@ export class SolicitationWizardComponent {
     setAside: string | null;
     contractType: string | null;
     agencySupplement: string | null;
+    periodOfPerformance: string | null;
+    placeOfPerformance: string | null;
+    evalApproach: string | null;
+    keyPersonnel: string | null;
   } {
     const v = this.step1Form.value;
     return {
@@ -685,6 +762,10 @@ export class SolicitationWizardComponent {
       setAside: v.setAside || null,
       contractType: v.contractType || null,
       agencySupplement: v.agencySupplement || null,
+      periodOfPerformance: v.periodOfPerformance || null,
+      placeOfPerformance: v.placeOfPerformance || null,
+      evalApproach: v.evalApproach || null,
+      keyPersonnel: v.keyPersonnel || null,
     };
   }
 
@@ -753,6 +834,27 @@ export class SolicitationWizardComponent {
       lastRerankTopScore: existing?.lastRerankTopScore ?? null,
       lastGateDecision: existing?.lastGateDecision ?? null,
     } as SectionAudit;
+  }
+
+  /** Editable section list for the Step 12 review surface (I excluded —
+   *  retrieved-only clause list; DEMO-REDESIGN-spec §6). */
+  reviewSections: { letter: string; title: string }[] = [
+    { letter: 'A', title: 'Solicitation/Contract Form' },
+    { letter: 'B', title: 'Supplies/Services + Prices' },
+    { letter: 'C', title: 'Statement of Work' },
+    { letter: 'D', title: 'Packaging and Marking' },
+    { letter: 'E', title: 'Inspection and Acceptance' },
+    { letter: 'F', title: 'Deliveries or Performance' },
+    { letter: 'G', title: 'Contract Administration Data' },
+    { letter: 'H', title: 'Special Contract Requirements' },
+    { letter: 'J', title: 'List of Attachments' },
+    { letter: 'K', title: 'Representations & Certifications' },
+    { letter: 'L', title: 'Instructions to Offerors' },
+    { letter: 'M', title: 'Evaluation Factors for Award' },
+  ];
+
+  sectionText(letter: string): string {
+    return ((this.sections as any)[`section${letter}`] as string | undefined) || '';
   }
 
   provenanceFor(sectionLetter: string): string {
