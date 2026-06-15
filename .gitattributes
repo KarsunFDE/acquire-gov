@@ -7,3 +7,4 @@ docs/reference/far/MANIFEST.md                     text eol=lf
 docs/reference/synthetic-solicitations/**/*.md     text eol=lf
 docs/reference/synthetic-solicitations/MANIFEST.sha256  text eol=lf
 docs/reference/synthetic-solicitations/MANIFEST.md      text eol=lf
+docs/reference/far/*.json                          text eol=lf

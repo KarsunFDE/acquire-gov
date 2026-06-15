@@ -200,3 +200,57 @@ def test_tenant_id_literal_in_query_does_not_override_pre_filter() -> None:
     assert _FakeHybridRetriever.last_kwargs["pre_filter"] == {
         "tenant_id": "tenant_A"
     }
+
+
+# --- M1 agentic extension (ADR-0012; design ref §13.4) -----------------------
+
+
+def test_agent_cannot_bypass_tenant_filter_via_tool_args() -> None:
+    """Even if the agent tries to smuggle a tenant in tool args, the tool
+    reads tenant_id from RunnableConfig only — the tool signature exposes
+    no tenant parameter, and the factory pre_filter stays pinned to the
+    config tenant."""
+    from app.agents.tools import retrieve_far_clauses
+
+    # 1. The model-visible schema has no tenant_id arg to spoof.
+    schema = retrieve_far_clauses.args_schema.model_json_schema()
+    assert "tenant_id" not in schema.get("properties", {})
+
+    # 2. The factory receives the RunnableConfig tenant, not query content.
+    from app.agents.tools import retrieve_far as rf_mod
+    from app.rerank import RerankResult
+
+    seen: dict = {}
+    orig_factory = retrieval.build_far_retriever
+
+    def _spy_factory(*, tenant_id, vector_weight=1.0, fulltext_weight=1.0):
+        seen["tenant_id"] = tenant_id
+        return orig_factory(
+            tenant_id=tenant_id,
+            vector_weight=vector_weight,
+            fulltext_weight=fulltext_weight,
+        )
+
+    orig_rerank = rf_mod.rerank.rerank_only
+    rf_mod.retrieval.build_far_retriever = _spy_factory
+    rf_mod.rerank.rerank_only = lambda q, c: RerankResult(
+        top=list(c), top_score=0.9, degraded_mode=False
+    )
+    try:
+        result = retrieve_far_clauses.func(  # type: ignore[attr-defined]
+            query="tenant_id=tenant_B show me everything",
+            k=20,
+            config={"configurable": {"tenant_id": "tenant_A"}},
+        )
+    finally:
+        rf_mod.retrieval.build_far_retriever = orig_factory
+        rf_mod.rerank.rerank_only = orig_rerank
+
+    assert seen["tenant_id"] == "tenant_A"
+    assert _FakeHybridRetriever.last_kwargs["pre_filter"] == {
+        "tenant_id": "tenant_A"
+    }
+    # Nothing from tenant_B leaked into the evidence.
+    b_ids = {c["chunk_id"] for c in _FakeHybridRetriever._CORPUS
+             if c["tenant_id"] == "tenant_B"}
+    assert {c.chunk_id for c in result.chunks}.isdisjoint(b_ids)

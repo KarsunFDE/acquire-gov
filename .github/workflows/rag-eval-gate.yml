@@ -23,6 +23,8 @@ on:
       - "services/ai-orchestrator/app/guardrails.py"
       - "services/ai-orchestrator/app/citations.py"
       - "services/ai-orchestrator/app/prompts/**"
+      - "services/ai-orchestrator/app/agents/**"
+      - "services/ai-orchestrator/app/api/**"
       - "services/ai-orchestrator/eval/**"
       - ".github/workflows/rag-eval-gate.yml"
   push:
@@ -34,6 +36,8 @@ on:
       - "services/ai-orchestrator/app/guardrails.py"
       - "services/ai-orchestrator/app/citations.py"
       - "services/ai-orchestrator/app/prompts/**"
+      - "services/ai-orchestrator/app/agents/**"
+      - "services/ai-orchestrator/app/api/**"
       - "services/ai-orchestrator/eval/**"
 
 permissions:
@@ -104,6 +108,23 @@ jobs:
           else
             python -m pytest -m req_rag_3 -v
           fi
+
+      - name: pytest req_aid_1 (REQ-AID-1 structured-output contract)
+        # M1 design ref §13.5 — runs alongside req_rag_3 on every PR. The
+        # boundary tests mock the agent seams; no Bedrock/Mongo needed.
+        working-directory: services/ai-orchestrator
+        run: python -m pytest -m req_aid_1 -v
+
+      - name: M1 eval metrics (RECORD-ONLY — Phase 1.5 flips to gating)
+        # M1 design ref §13.2 + §18.8. Seven metrics into the run summary;
+        # exit code ALWAYS 0 in Phase 1 (no thresholds). Phase 1.5 trigger:
+        # after the first baseline lands, a follow-up PR enforces
+        # tool_order_drift < 0.10, withhold_short_circuit_rate > 0.90,
+        # hitl_interrupt_recall = 1.00, critic_* per §18.8 table.
+        working-directory: services/ai-orchestrator
+        run: |
+          python -m eval.run_m1_metrics --out eval/results/m1_metrics.json
+          cat eval/results/m1_metrics.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run RAGAS eval
         # Spec section 7.2 step 3. Calls /retrieve over HTTP; Nova Micro

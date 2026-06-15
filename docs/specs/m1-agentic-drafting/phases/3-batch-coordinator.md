@@ -98,46 +98,46 @@ P3.1, P3.3, P3.4, P3.7 can start in parallel after P2. P3.2 sequences after P3.1
 
 ### P3.1 — Multi-section draft tool variant
 
-- [ ] `app/agents/tools/draft.py::draft_section_text` accepts `section_ids: list[str]`; backward-compat tests for singleton-list invocation (Phase 1 path still works).
-- [ ] Tool emits `dict[str, SectionDraftSkeleton]` keyed by section_id.
-- [ ] Prompt: instructs the model to draft sections coherently when given multiple section_ids ("Part I sections C + H share retrieved FAR context — cross-reference where appropriate").
-- [ ] Unit test with mocked Sonnet that returns malformed dict → tool surfaces a typed error the handler catches.
+- [x] `app/agents/tools/draft.py::draft_section_text` accepts `section_ids: list[str]`; backward-compat tests for singleton-list invocation (Phase 1 path still works).
+- [x] Tool emits `dict[str, SectionDraftSkeleton]` keyed by section_id.
+- [x] Prompt: instructs the model to draft sections coherently when given multiple section_ids ("Part I sections C + H share retrieved FAR context — cross-reference where appropriate").
+- [x] Unit test with mocked Sonnet that returns malformed dict → tool surfaces a typed error the handler catches.
 
 ### P3.2 — PartDrafterAgent builder
 
-- [ ] `app/agents/part_drafter/__init__.py`, `builder.py`, `prompts.py`.
-- [ ] `PART_DRAFTING_SYSTEM_PROMPTS["I"]` + `PART_DRAFTING_SYSTEM_PROMPTS["IV"]` per spec §18.12.2.
-- [ ] `build_part_drafter_agent(part)` per spec §18.12.2.
-- [ ] Integration test with stubbed tools: invoke a Part I agent against 2 mocked retrieved chunks; assert `PartDraftBundle` carries C + H sections.
+- [x] `app/agents/part_drafter/__init__.py`, `builder.py`, `prompts.py`.
+- [x] `PART_DRAFTING_SYSTEM_PROMPTS["I"]` + `PART_DRAFTING_SYSTEM_PROMPTS["IV"]` per spec §18.12.2.
+- [x] `build_part_drafter_agent(part)` per spec §18.12.2.
+- [x] Integration test with stubbed tools: invoke a Part I agent against 2 mocked retrieved chunks; assert `PartDraftBundle` carries C + H sections.
 
 ### P3.3 — Part II programmatic tool
 
-- [ ] `app/agents/coordinator/part_ii.py::resolve_part_ii_clauses` per spec §18.12.2.
-- [ ] Reads from `docs/reference/far/clause_applicability.json` (loaded once at import).
-- [ ] Returns empty `PartIIClauseList` (with explicit `resolved_for` audit echo) when args don't match a known combination — not a 500.
-- [ ] Unit test: 5 known set-asides × 2 contract types = 10 fixture cases asserting expected clause lists.
+- [x] `app/agents/coordinator/part_ii.py::resolve_part_ii_clauses` per spec §18.12.2.
+- [x] Reads from `docs/reference/far/clause_applicability.json` (loaded once at import).
+- [x] Returns empty `PartIIClauseList` (with explicit `resolved_for` audit echo) when args don't match a known combination — not a 500.
+- [x] Unit test: 5 known set-asides × 2 contract types = 10 fixture cases asserting expected clause lists.
 
 ### P3.4 — Clause-applicability matrix asset
 
-- [ ] `docs/reference/far/clause_applicability.json` listing required FAR/DFARS clauses by `(set_aside, contract_type, agency_supplement)` triple.
-- [ ] Add entry to `docs/reference/far/MANIFEST.sha256` so the FAR snapshot verifier (`.github/scripts/verify-far-snapshot-manifest.sh`) covers it.
-- [ ] Documented in `docs/reference/far/MANIFEST.md` with sourcing notes (which FAR sections informed the matrix).
+- [x] `docs/reference/far/clause_applicability.json` listing required FAR/DFARS clauses by `(set_aside, contract_type, agency_supplement)` triple.
+- [x] Add entry to `docs/reference/far/MANIFEST.sha256` so the FAR snapshot verifier (`.github/scripts/verify-far-snapshot-manifest.sh`) covers it.
+- [x] Documented in `docs/reference/far/MANIFEST.md` with sourcing notes (which FAR sections informed the matrix).
 
 ### P3.5 — Coordinator graph + nodes
 
-- [ ] `app/agents/coordinator/__init__.py`, `graph.py`, `nodes.py` per spec §18.12.2.
-- [ ] `_draft_part_i` + `_draft_part_iv` invoke `build_part_drafter_agent(part)` and catch `GraphInterrupt` → synthesize a Part-level interrupted bundle (mirror of Phase 2 P2.1 pattern for the section-level case).
-- [ ] `_critic` node is a stub returning `ConsistencyReport.overall_severity="info"` with empty sub-reports until Phase 4 lands.
-- [ ] Coordinator graph compiled with checkpointer (same `MongoDBSaver` singleton).
-- [ ] Unit tests per node + `tests/agents/coordinator/test_graph_compose.py` asserting graph wiring.
+- [x] `app/agents/coordinator/__init__.py`, `graph.py`, `nodes.py` per spec §18.12.2.
+- [x] `_draft_part_i` + `_draft_part_iv` invoke `build_part_drafter_agent(part)` and catch `GraphInterrupt` → synthesize a Part-level interrupted bundle (mirror of Phase 2 P2.1 pattern for the section-level case).
+- [x] `_critic` node is a stub returning `ConsistencyReport.overall_severity="info"` with empty sub-reports until Phase 4 lands.
+- [x] Coordinator graph compiled with checkpointer (same `MongoDBSaver` singleton).
+- [x] Unit tests per node + `tests/agents/coordinator/test_graph_compose.py` asserting graph wiring.
 
 ### P3.6 — Batch endpoints
 
-- [ ] `app/api/batch.py` per spec §18.12.2 + slowapi multi-cost `limiter._storage.hit(_tenant_key(request), cost=n-1)` per spec §18.6.1.
-- [ ] `app/api/batch_resume.py` per spec §4.2 (the spec's `/batch/resume` block).
-- [ ] Both routes mounted in `app/main.py`.
-- [ ] Audit row writers: `batch_coordinator_run`, `batch_resume`.
-- [ ] Integration test in `tests/api/test_batch.py`:
+- [x] `app/api/batch.py` per spec §18.12.2 + slowapi multi-cost `limiter._storage.hit(_tenant_key(request), cost=n-1)` per spec §18.6.1.
+- [x] `app/api/batch_resume.py` per spec §4.2 (the spec's `/batch/resume` block).
+- [x] Both routes mounted in `app/main.py`.
+- [x] Audit row writers: `batch_coordinator_run`, `batch_resume`.
+- [x] Integration test in `tests/api/test_batch.py`:
   - 4 sections null → batch_completed.
   - 1 section pre-owned (provenance="human") → coordinator skips it, drafts only 3.
   - Forced hitl-band on one drafter → batch_interrupted; non-interrupted drafts preserved.
@@ -145,16 +145,16 @@ P3.1, P3.3, P3.4, P3.7 can start in parallel after P2. P3.2 sequences after P3.1
 
 ### P3.7 — Frontend batch UI
 
-- [ ] Wizard "Draft AI Parts" button (likely above Step 4 or in a sidebar).
-- [ ] `solicitation.service.ts::draftBatch(...)` + `resumeBatch(batchRunId, decisions)`.
-- [ ] Section-card per-Part interrupt surface: when a Part fan-out interrupts, both sections in that Part share one "Pending CO decision" panel.
-- [ ] Bundle render: each PartResult's sections populate their respective section-cards (C/H/L/M) and Section I gets the resolved clause list from PartResult.II.
+- [x] Wizard "Draft AI Parts" button (likely above Step 4 or in a sidebar).
+- [x] `solicitation.service.ts::draftBatch(...)` + `resumeBatch(batchRunId, decisions)`.
+- [x] Section-card per-Part interrupt surface: when a Part fan-out interrupts, both sections in that Part share one "Pending CO decision" panel.
+- [x] Bundle render: each PartResult's sections populate their respective section-cards (C/H/L/M) and Section I gets the resolved clause list from PartResult.II.
 
 ### P3.8 — End-to-end batch smoke
 
-- [ ] CLI smoke script `services/ai-orchestrator/scripts/m1_p3_smoke.sh` runs the curl from spec §18.10.
-- [ ] Pause-restart test extended: container restart between batch and resume.
-- [ ] LangSmith trace inspection: assert parent `batch_coordinator_run` span has `part_i_drafter` + `part_iv_drafter` parallel child spans.
+- [x] CLI smoke script `services/ai-orchestrator/scripts/m1_p3_smoke.sh` runs the curl from spec §18.10.
+- [x] Pause-restart test extended: container restart between batch and resume.
+- [x] LangSmith trace inspection: assert parent `batch_coordinator_run` span has `part_i_drafter` + `part_iv_drafter` parallel child spans.
 
 ## 8. In-progress checklist
 
@@ -169,4 +169,13 @@ See tracker §4 Phase 3.
 
 ## 10. Handoff notes
 
-(empty)
+**2026-06-11 (Phase 3 complete on `cj/m1-langchain-integration`):**
+
+- Coordinator interrupt protocol adapted to langgraph 1.x semantics: a paused CHILD agent returns `__interrupt__` (it does not raise GraphInterrupt); the node then calls parent `interrupt()` so the coordinator pauses too. The node body is replay-safe — on resume-replay it detects the already-paused child via `agent.get_state()` and skips re-invocation.
+- `/batch/resume` maps section-keyed decisions onto parent interrupt ids via the interrupt payload's `args.sections` list, then `Command(resume=<value|{id: value}>)`.
+- `draft_section_text` is now list-based (`section_ids`); SectionDrafterAgent invokes with a singleton list (P1 tests updated).
+- Multi-cost rate limit charges n-1 extra hits through `limiter.limiter.hit(item, key, cost=n-1)` with a per-unit-loop fallback for older `limits`.
+- clause_applicability.json hash-pinned in MANIFEST.sha256 (verifier green); `.gitattributes` adds `*.json eol=lf` for the FAR dir.
+- Critic node is the Phase-4 seam: `nodes._run_critic` returns the info-severity stub; Phase 4 swaps it.
+- tsconfig.app.json now excludes `*.spec.ts` (ng build was compiling specs once batch spec imports landed).
+- LangSmith span-order check (P3.8 third box) needs the live stack — run scripts/m1_p3_smoke.sh with LANGSMITH_TRACING=true.

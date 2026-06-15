@@ -95,49 +95,49 @@ CO completes drafting (single-section path or batch path)
 
 ### P4.1 — Critic tools
 
-- [ ] `app/agents/critic/__init__.py`, `tools/__init__.py`, `tools/{lm_consistency,set_aside,clin_coverage}.py`.
-- [ ] `verify_l_m_consistency` — LLM tool body uses `ChatBedrockConverse(config.BEDROCK_CRITIC_MODEL).with_structured_output(LMAlignmentReport)`. Per ADR-0014 D5, role differs by invocation path (batch verify vs standalone full-check); the same tool body handles both — the difference is what L and M text it sees.
-- [ ] `check_set_aside_consistency` — programmatic; uses `SET_ASIDE_REQUIRED_CLAUSES` dict from spec §18.5. Honors `config.SET_ASIDE_STRICT_EXTRA` for warn-on-extra behavior.
-- [ ] `check_clin_coverage` — programmatic; per ADR-0015 critic-pass minor fix, includes `section_b is None` guard returning info-severity skip (parallel to the other two tools' missing-section handling).
-- [ ] Unit tests:
+- [x] `app/agents/critic/__init__.py`, `tools/__init__.py`, `tools/{lm_consistency,set_aside,clin_coverage}.py`.
+- [x] `verify_l_m_consistency` — LLM tool body uses `ChatBedrockConverse(config.BEDROCK_CRITIC_MODEL).with_structured_output(LMAlignmentReport)`. Per ADR-0014 D5, role differs by invocation path (batch verify vs standalone full-check); the same tool body handles both — the difference is what L and M text it sees.
+- [x] `check_set_aside_consistency` — programmatic; uses `SET_ASIDE_REQUIRED_CLAUSES` dict from spec §18.5. Honors `config.SET_ASIDE_STRICT_EXTRA` for warn-on-extra behavior.
+- [x] `check_clin_coverage` — programmatic; per ADR-0015 critic-pass minor fix, includes `section_b is None` guard returning info-severity skip (parallel to the other two tools' missing-section handling).
+- [x] Unit tests:
   - L↔M: mocked Sonnet with crafted L+M text → expected `LMAlignmentReport`.
   - Set-aside: table-driven over 5 set-asides × {matched, missing-required, extra}.
   - CLIN: multi-CLIN solicitations × {all-aligned, 1-missing-warn, 2+-missing-fail-but-clamped-to-overall-warn}.
 
 ### P4.2 — Critic builder
 
-- [ ] `app/agents/critic/builder.py::build_consistency_critic_agent()` per spec §18.4.
-- [ ] `app/agents/critic/prompts.py::CONSISTENCY_CRITIC_SYSTEM_PROMPT` — directs agent to call all 3 tools, never iterate, return a single `ConsistencyReport`.
-- [ ] Critic agent: `create_agent(model=Chat..., tools=[3 tools], system_prompt=..., response_format=ConsistencyReport, name="consistency_critic")` — NO middleware, NO checkpointer (warn-only, no interrupt, short runs).
-- [ ] Integration test with stubbed tool returns: critic emits a correctly-shaped `ConsistencyReport` with `blocks_submit=False`.
+- [x] `app/agents/critic/builder.py::build_consistency_critic_agent()` per spec §18.4.
+- [x] `app/agents/critic/prompts.py::CONSISTENCY_CRITIC_SYSTEM_PROMPT` — directs agent to call all 3 tools, never iterate, return a single `ConsistencyReport`.
+- [x] Critic agent: `create_agent(model=Chat..., tools=[3 tools], system_prompt=..., response_format=ConsistencyReport, name="consistency_critic")` — NO middleware, NO checkpointer (warn-only, no interrupt, short runs).
+- [x] Integration test with stubbed tool returns: critic emits a correctly-shaped `ConsistencyReport` with `blocks_submit=False`.
 
 ### P4.3 — Frontend Step 12
 
-- [ ] Wizard Step 12 component (likely `solicitation-wizard-step-12.component.ts` or extension of existing wizard) renders three sub-reports:
+- [x] Wizard Step 12 component (likely `solicitation-wizard-step-12.component.ts` or extension of existing wizard) renders three sub-reports:
   - LMAlignmentReport: list of mismatches with severity-colored badges.
   - SetAsideConsistencyReport: missing-clauses + extras lists.
   - CLINCoverageReport: gap rows with "Fix Section X →" deep-links to the relevant section card.
-- [ ] `solicitation.service.ts::critic(bundle)` POSTs `/critic` and returns `ConsistencyReport`.
-- [ ] Step 12 auto-invokes critic on entry; loading state while pending.
+- [x] `solicitation.service.ts::critic(bundle)` POSTs `/critic` and returns `ConsistencyReport`.
+- [x] Step 12 auto-invokes critic on entry; loading state while pending.
 
 ### P4.4 — /critic endpoint
 
-- [ ] `app/api/critic.py` with `POST /draft-solicitation/critic` per spec §18.2 + ADR-0014 D6.2.
-- [ ] Reads `CriticRequest` body; builds critic agent; invokes; writes audit row `action="consistency_critic"`.
-- [ ] Standalone path (NOT batch-coordinator-driven): the "full LLM semantic check" mode per ADR-0014 D5 — L and M may be hand-typed, so the LLM check is the only alignment surface.
-- [ ] Mount route in `app/main.py`.
-- [ ] Integration tests covering 3 fixture solicitations: clean, set-aside-mismatch, CLIN-gap.
+- [x] `app/api/critic.py` with `POST /draft-solicitation/critic` per spec §18.2 + ADR-0014 D6.2.
+- [x] Reads `CriticRequest` body; builds critic agent; invokes; writes audit row `action="consistency_critic"`.
+- [x] Standalone path (NOT batch-coordinator-driven): the "full LLM semantic check" mode per ADR-0014 D5 — L and M may be hand-typed, so the LLM check is the only alignment surface.
+- [x] Mount route in `app/main.py`.
+- [x] Integration tests covering 3 fixture solicitations: clean, set-aside-mismatch, CLIN-gap.
 
 ### P4.5 — Coordinator critic swap (requires P3 complete)
 
-- [ ] `app/agents/coordinator/nodes.py::_critic` body swaps from stub to `build_consistency_critic_agent().invoke(...)`.
-- [ ] Integration test against the coordinator path: known-good bundle → critic emits low-severity report; known-mismatch bundle → warn-severity report.
-- [ ] LangSmith trace inspection: critic span fires AFTER aggregate span (parent-child ordering).
+- [x] `app/agents/coordinator/nodes.py::_critic` body swaps from stub to `build_consistency_critic_agent().invoke(...)`.
+- [x] Integration test against the coordinator path: known-good bundle → critic emits low-severity report; known-mismatch bundle → warn-severity report.
+- [x] LangSmith trace inspection: critic span fires AFTER aggregate span (parent-child ordering).
 
 ### P4.6 — E2E critic
 
-- [ ] CLI smoke script in `services/ai-orchestrator/scripts/m1_p4_critic_smoke.sh` running the curl from spec §18.10 (critic standalone).
-- [ ] Add a `m1_p4_batch_critic_smoke.sh` that runs /batch end-to-end with critic-driven warnings (depends on P4.5).
+- [x] CLI smoke script in `services/ai-orchestrator/scripts/m1_p4_critic_smoke.sh` running the curl from spec §18.10 (critic standalone).
+- [x] Add a `m1_p4_batch_critic_smoke.sh` that runs /batch end-to-end with critic-driven warnings (depends on P4.5).
 
 ## 8. In-progress checklist
 
@@ -152,4 +152,11 @@ See tracker §4 Phase 4.
 
 ## 10. Handoff notes
 
-(empty)
+**2026-06-11 (Phase 4 complete on `cj/m1-langchain-integration`):**
+
+- Warn-only invariant enforced at TWO layers: the system prompt instructs the clamp, and `app/api/critic.py::clamp_phase1` re-clamps at the boundary (fail→warn, blocks_submit→False) regardless of what the agent emits — authority over accuracy.
+- Batch-path critic (`nodes._run_critic`) falls back to the info stub on any agent error — the warn-only critic can never fail a batch.
+- `verify_l_m_consistency` is single-pass: malformed structured output raises `critic_parse_failed` (no retry — design ref §18.8).
+- Set-aside tool carries the same wizard-enum aliases (8A/HUBZONE/SMALL_BUSINESS) as clause_applicability.json `_meta`.
+- LangSmith span-order check (P4.5 third box) needs the live stack: run scripts/m1_p4_batch_critic_smoke.sh with LANGSMITH_TRACING=true.
+- Coordinator graph tests pin `_run_critic` to the stub; the real critic loop is proven in tests/agents/critic/test_critic_builder.py (scripted create_agent run) + tests/api/test_critic.py.

@@ -3,8 +3,13 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
+  BatchDraftRequest,
+  BatchPerSectionDecision,
+  ConsistencyReport,
+  CriticRequest,
   Solicitation,
   SolicitationCreate,
+  SolicitationDraftBundle,
   DraftSectionRequest,
   DraftSectionResponse,
 } from '../models/solicitation';
@@ -30,11 +35,11 @@ export class SolicitationService {
 
   /**
    * When `true`, draftSection() returns a canned mock that conforms to the
-   * locked /draft-solicitation/section response shape. Default `true` until
-   * the orchestrator endpoint (C9) ships and pipeline track flips this off.
-   * Toggle in tests or browser console for end-to-end smoke against real backend.
+   * locked /draft-solicitation/section response shape. Flipped to `false` in
+   * M1 Phase 1 — the agentic /draft-solicitation/section endpoint is live.
+   * Toggle in tests or browser console to demo without the backend.
    */
-  useMockAI = true;
+  useMockAI = false;
 
   constructor(private http: HttpClient, private role: RoleService) {}
 
@@ -58,13 +63,25 @@ export class SolicitationService {
   draftSection(
     solicitationId: string,
     sectionId: string,
-    opts?: { query?: string; constraints?: string },
+    opts?: {
+      query?: string;
+      constraints?: string;
+      /** Step 1 metadata (ADR-0015 D3) injected by the wizard. */
+      naics?: string | null;
+      setAside?: string | null;
+      contractType?: string | null;
+      agencySupplement?: string | null;
+    },
   ): Observable<DraftSectionResponse> {
     const requestId = this.uuidV4();
     const tenantId = this.role.current.agencyId || 'agency-test';
     const body: DraftSectionRequest = {
       section_id: sectionId,
       solicitation_id: solicitationId,
+      naics: opts?.naics || null,
+      set_aside: opts?.setAside || null,
+      contract_type: opts?.contractType || null,
+      agency_supplement: opts?.agencySupplement || null,
       query: opts?.query,
       constraints: opts?.constraints,
     };
@@ -123,7 +140,93 @@ export class SolicitationService {
       requires_human_review: false,
       rerank_top_score: 0.74,
       request_id: requestId,
+      run_id: `mock:${sec}:${requestId}`,
+      pending_tool_call: null,
+      degraded_context: [],
     };
+  }
+
+  /**
+   * Resume a paused HITL run with a CO decision (ADR-0012 D8; design ref §12.5).
+   */
+  resumeSection(
+    runId: string,
+    decision: 'approve' | 'edit' | 'reject',
+    editedArgs?: Record<string, unknown>,
+    reason?: string,
+  ): Observable<DraftSectionResponse> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<DraftSectionResponse>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/section/resume`,
+      { run_id: runId, decision, edited_args: editedArgs ?? null, reason: reason ?? null },
+      { headers },
+    );
+  }
+
+  /**
+   * Abandon a paused run — CO types manually instead (ADR-0012 D8.2).
+   */
+  abandonSection(runId: string, reason?: string): Observable<{ ok: boolean }> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<{ ok: boolean }>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/section/abandon`,
+      { run_id: runId, reason: reason ?? null },
+      { headers },
+    );
+  }
+
+  /**
+   * Batch-draft all AI Parts (ADR-0014) — Parts I (C+H) + IV (L+M) in
+   * parallel, Part II clauses programmatic, Part III passthrough.
+   */
+  draftBatch(body: BatchDraftRequest): Observable<SolicitationDraftBundle> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<SolicitationDraftBundle>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/batch`,
+      body,
+      { headers },
+    );
+  }
+
+  /** Resume an interrupted batch run with per-section CO decisions. */
+  resumeBatch(
+    batchRunId: string,
+    decisions: BatchPerSectionDecision[],
+  ): Observable<SolicitationDraftBundle> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<SolicitationDraftBundle>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/batch/resume`,
+      { batch_run_id: batchRunId, decisions },
+      { headers },
+    );
+  }
+
+  /**
+   * Step 12 cross-section consistency critic (ADR-0013/0014) — warn-only;
+   * never blocks the FAR 5.705 publish gate.
+   */
+  critic(body: CriticRequest): Observable<ConsistencyReport> {
+    const headers = new HttpHeaders({
+      'X-Tenant-ID': this.role.current.agencyId || 'agency-test',
+      'X-Request-ID': this.uuidV4(),
+    });
+    return this.http.post<ConsistencyReport>(
+      `${environment.apiGatewayUrl}/api/ai/draft-solicitation/critic`,
+      body,
+      { headers },
+    );
   }
 
   /** RFC 4122 v4 — minimal in-browser generator; orchestrator echoes it back. */

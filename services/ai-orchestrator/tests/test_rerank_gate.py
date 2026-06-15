@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import re
+
 import pytest
 
 from app import config, rerank
@@ -189,4 +191,7 @@ def test_audit_skeleton_importable_and_callable() -> None:
         gate_decision="pass",
     )
     assert isinstance(result, str)
-    assert "req-123" in result
+    # File fallback returns a path carrying the request_id; a live Mongo
+    # (MONGO_URI set, e.g. mongo-gated local runs) returns the inserted
+    # ObjectId hex instead — accept both.
+    assert "req-123" in result or re.fullmatch(r"[0-9a-f]{24}", result)

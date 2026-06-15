@@ -14,8 +14,16 @@ uvicorn[standard]==0.32.0
 langchain>=1.0,<2
 langchain-core>=1.0,<2
 langchain-aws>=1.0,<2
-langchain-mongodb>=0.5,<1
-langchain-text-splitters>=0.3,<1
+# >=0.11 floor: 0.7.x imports the removed `langchain.retrievers` shim and
+# breaks under langchain v1 at `from langchain_mongodb.retrievers import ...`.
+langchain-mongodb>=0.11,<1
+# langchain-mongodb>=0.11 floor pulls splitters to 1.x; APIs we use
+# (Recursive/MarkdownHeader splitters) are unchanged across the bump.
+langchain-text-splitters>=1.0,<2
+
+# M1 agentic drafting — MongoDB-backed LangGraph checkpointer (ADR-0012 D4).
+# MongoDBSaver persists paused HITL runs across multi-day CO delays.
+langgraph-checkpoint-mongodb>=0.1,<1
 
 # Bedrock / AWS
 # Bearer-token floor: 1.39.0 (support landed) / 1.39.11 (fixed cross-service

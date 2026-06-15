@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "description": "FAR clause applicability matrix for Part II (Section I) programmatic resolution (ADR-0014 D3). Deterministic lookup keyed on set_aside, contract_type, and agency_supplement. Lean-scope: covers the synthetic-corpus set-asides + contract types used by the trainer wizard; expansion is Phase 1.5 corpus work.",
+    "snapshot_date": "2026-06-09",
+    "source": "FAR Part 52 prescriptions (see MANIFEST.md sourcing notes)",
+    "set_aside_aliases": {
+      "8A": "8(a)",
+      "HUBZONE": "HUBZone",
+      "SMALL_BUSINESS": "total_small_business",
+      "FULL_AND_OPEN": null
+    }
+  },
+  "base": [
+    {"citation": "52.212-4", "title": "Contract Terms and Conditions â€” Commercial Products and Commercial Services", "prescription": "FAR 12.301(b)(3)"},
+    {"citation": "52.204-7", "title": "System for Award Management", "prescription": "FAR 4.1105(a)(1)"},
+    {"citation": "52.204-21", "title": "Basic Safeguarding of Covered Contractor Information Systems", "prescription": "FAR 4.1903"},
+    {"citation": "52.215-1", "title": "Instructions to Offerors â€” Competitive Acquisition", "prescription": "FAR 15.209(a)"},
+    {"citation": "52.233-1", "title": "Disputes", "prescription": "FAR 33.215"}
+  ],
+  "set_aside": {
+    "8(a)": [
+      {"citation": "52.219-18", "title": "Notification of Competition Limited to Eligible 8(a) Participants", "prescription": "FAR 19.811-3(a)"},
+      {"citation": "52.219-14", "title": "Limitations on Subcontracting", "prescription": "FAR 19.507(e)"}
+    ],
+    "SDVOSB": [
+      {"citation": "52.219-27", "title": "Notice of Service-Disabled Veteran-Owned Small Business Set-Aside", "prescription": "FAR 19.1408"},
+      {"citation": "52.219-14", "title": "Limitations on Subcontracting", "prescription": "FAR 19.507(e)"}
+    ],
+    "WOSB": [
+      {"citation": "52.219-30", "title": "Notice of Set-Aside for Women-Owned Small Business Concerns", "prescription": "FAR 19.1506(a)"},
+      {"citation": "52.219-14", "title": "Limitations on Subcontracting", "prescription": "FAR 19.507(e)"}
+    ],
+    "HUBZone": [
+      {"citation": "52.219-3", "title": "Notice of HUBZone Set-Aside or Sole-Source Award", "prescription": "FAR 19.1309(a)"},
+      {"citation": "52.219-14", "title": "Limitations on Subcontracting", "prescription": "FAR 19.507(e)"}
+    ],
+    "total_small_business": [
+      {"citation": "52.219-6", "title": "Notice of Total Small Business Set-Aside", "prescription": "FAR 19.507(c)"},
+      {"citation": "52.219-14", "title": "Limitations on Subcontracting", "prescription": "FAR 19.507(e)"}
+    ]
+  },
+  "contract_type": {
+    "FFP": [
+      {"citation": "52.232-1", "title": "Payments", "prescription": "FAR 32.111(a)(1)"},
+      {"citation": "52.246-1", "title": "Contractor Inspection Requirements", "prescription": "FAR 46.301"},
+      {"citation": "52.249-1", "title": "Termination for Convenience of the Government (Fixed-Price) (Short Form)", "prescription": "FAR 49.502(a)(1)"}
+    ],
+    "CPFF": [
+      {"citation": "52.216-8", "title": "Fixed Fee", "prescription": "FAR 16.307(b)"},
+      {"citation": "52.232-20", "title": "Limitation of Cost", "prescription": "FAR 32.706-2(a)"}
+    ],
+    "T_AND_M": [
+      {"citation": "52.232-7", "title": "Payments under Time-and-Materials and Labor-Hour Contracts", "prescription": "FAR 32.111(a)(7)"}
+    ],
+    "IDIQ": [
+      {"citation": "52.216-22", "title": "Indefinite Quantity", "prescription": "FAR 16.506(e)"},
+      {"citation": "52.216-18", "title": "Ordering", "prescription": "FAR 16.506(a)"}
+    ],
+    "BPA": [
+      {"citation": "52.216-18", "title": "Ordering", "prescription": "FAR 16.506(a)"}
+    ]
+  },
+  "agency_supplement": {
+    "GSAM": [
+      {"citation": "552.212-4", "title": "Contract Terms and Conditions â€” Commercial Products and Commercial Services (FAR Deviation)", "prescription": "GSAM 512.301"}
+    ],
+    "DFARS": [
+      {"citation": "252.204-7012", "title": "Safeguarding Covered Defense Information and Cyber Incident Reporting", "prescription": "DFARS 204.7304(c)"}
+    ]
+  }
+}

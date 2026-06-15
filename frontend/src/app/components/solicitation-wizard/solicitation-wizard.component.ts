@@ -1,12 +1,25 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import {
+  FormBuilder,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { Router } from '@angular/router';
 import { SolicitationService } from '../../services/solicitation.service';
 import {
+  BatchPerSectionDecision,
+  ConsistencyReport,
+  DraftSectionResponse,
+  FARClauseReference,
+  PartIIClauseList,
+  PendingToolCall,
   SectionAudit,
   Solicitation,
   SolicitationCreate,
+  SolicitationDraftBundle,
   SolicitationSections,
 } from '../../models/solicitation';
 import { SectionCardComponent } from './section-card.component';
@@ -37,7 +50,7 @@ import { SectionCardComponent } from './section-card.component';
 @Component({
   selector: 'app-solicitation-wizard',
   standalone: true,
-  imports: [CommonModule, FormsModule, SectionCardComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, SectionCardComponent],
   template: `
     <div class="page-header">
       <div>
@@ -52,55 +65,112 @@ import { SectionCardComponent } from './section-card.component';
             [class.complete]="i < step">{{ i + 1 }}. {{ s }}</span>
     </div>
 
-    <!-- Step 1: Basics -->
+    <!-- M1 Phase 3 — batch draft all AI Parts (ADR-0014). -->
+    <div class="batch-bar card" *ngIf="step > 0">
+      <button (click)="onDraftAiParts()"
+              [disabled]="batchDrafting || !isStep1ContextReady()"
+              [title]="isStep1ContextReady() ? '' : 'Complete Step 1 first'">
+        {{ batchDrafting ? 'Drafting AI Parts…' : '▦▦ Draft AI Parts (C · H · L · M)' }}
+      </button>
+      <span class="step-hint">
+        Parts I (C+H) + IV (L+M) draft in parallel; Part II clauses resolve
+        programmatically; Part III passes through wizard attachments.
+      </span>
+      <div *ngIf="batchError" class="error-text">{{ batchError }}</div>
+
+      <!-- Per-Part HITL surface: one pending panel per interrupted Part. -->
+      <div *ngIf="batchPendingInterrupts.length" class="batch-hitl">
+        <div class="gate-banner gate-banner--hitl"
+             *ngFor="let p of batchPendingInterrupts">
+          ⏸ <strong>Part {{ p.args['part'] }} pending CO decision</strong>
+          (sections {{ asList(p.args['sections']) }}) — {{ p.reason }}
+          <span class="hitl-actions" *ngIf="!batchResuming">
+            <button (click)="onBatchDecision(p, 'approve')">Approve</button>
+            <button class="secondary" (click)="onBatchDecision(p, 'reject')">Reject</button>
+          </span>
+        </div>
+        <div *ngIf="batchResuming" class="step-hint">Resuming batch…</div>
+      </div>
+    </div>
+
+    <!-- Step 1: Basics — reactive forms (ADR-0015 D4): 5 hard-required
+         fields gate Next + every AI-draft button. -->
     <div class="card" *ngIf="step === 0">
       <h3>1. Basics</h3>
-      <label><span class="label-text">Title</span>
-        <input name="title" [(ngModel)]="model.title" placeholder="e.g., Cloud Managed Services BPA"/>
-      </label>
-      <div class="two-col">
-        <label><span class="label-text">Agency ID</span>
-          <input name="agencyId" [(ngModel)]="model.agencyId" placeholder="GSA-FAS"/>
+      <form [formGroup]="step1Form">
+        <label><span class="label-text">Title *</span>
+          <input formControlName="title" placeholder="e.g., Cloud Managed Services BPA"/>
         </label>
-        <label><span class="label-text">NAICS</span>
-          <input name="naics" [(ngModel)]="model.naics" placeholder="541512"/>
+        <div class="two-col">
+          <label><span class="label-text">Agency ID *</span>
+            <input formControlName="agencyId" placeholder="GSA-FAS"/>
+          </label>
+          <label><span class="label-text">NAICS *</span>
+            <input formControlName="naics" placeholder="541512"/>
+          </label>
+          <label><span class="label-text">Set-aside *</span>
+            <select formControlName="setAside">
+              <option value="FULL_AND_OPEN">Full and Open</option>
+              <option value="SMALL_BUSINESS">Small Business</option>
+              <option value="8A">8(a)</option>
+              <option value="SDVOSB">SDVOSB</option>
+              <option value="WOSB">WOSB</option>
+              <option value="HUBZONE">HUBZone</option>
+            </select>
+          </label>
+          <label><span class="label-text">Contract type *</span>
+            <select formControlName="contractType">
+              <option value="FFP">Firm Fixed Price</option>
+              <option value="CPFF">Cost Plus Fixed Fee</option>
+              <option value="T_AND_M">T&amp;M</option>
+              <option value="IDIQ">IDIQ</option>
+              <option value="BPA">BPA</option>
+            </select>
+          </label>
+          <label><span class="label-text">Agency FAR supplement</span>
+            <input formControlName="agencySupplement" placeholder="GSAM / DFARS (optional — drafts flag if missing)"/>
+          </label>
+          <label><span class="label-text">Notice type</span>
+            <select formControlName="noticeType">
+              <option value="RFI">RFI</option>
+              <option value="SOURCES_SOUGHT">Sources Sought</option>
+              <option value="RFP">RFP</option>
+              <option value="RFQ">RFQ</option>
+              <option value="COMBINED_SYNOPSIS">Combined Synopsis/Solicitation</option>
+            </select>
+          </label>
+          <label><span class="label-text">Ceiling ($)</span>
+            <input type="number" formControlName="ceilingValue"/>
+          </label>
+          <label><span class="label-text">Period of performance</span>
+            <input formControlName="periodOfPerformance" placeholder="12-mo base + four 12-mo options"/>
+          </label>
+          <label><span class="label-text">Place of performance</span>
+            <input formControlName="placeOfPerformance" placeholder="Washington, DC (hybrid / remote-eligible)"/>
+          </label>
+          <label><span class="label-text">Evaluation approach</span>
+            <select formControlName="evalApproach">
+              <option value="TRADEOFF">Best-value tradeoff</option>
+              <option value="LPTA">Lowest-Price Technically Acceptable</option>
+            </select>
+          </label>
+          <label><span class="label-text">Key personnel required</span>
+            <input formControlName="keyPersonnel" placeholder="e.g., Program Manager, Lead Engineer (or leave blank)"/>
+          </label>
+        </div>
+        <p class="step-hint">
+          Period/place/eval-approach/key-personnel are optional but sharpen the
+          AI drafts (F, C, L, M) — DEMO-REDESIGN-spec §4.
+        </p>
+        <label><span class="label-text">Description (public-facing)</span>
+          <textarea rows="4" formControlName="description"
+                    placeholder="Public solicitation description (rendered raw — see Debt Item 9)"></textarea>
         </label>
-        <label><span class="label-text">Set-aside</span>
-          <select name="setAside" [(ngModel)]="model.setAside">
-            <option value="FULL_AND_OPEN">Full and Open</option>
-            <option value="SMALL_BUSINESS">Small Business</option>
-            <option value="8A">8(a)</option>
-            <option value="SDVOSB">SDVOSB</option>
-            <option value="WOSB">WOSB</option>
-            <option value="HUBZONE">HUBZone</option>
-          </select>
-        </label>
-        <label><span class="label-text">Contract type</span>
-          <select name="contractType" [(ngModel)]="model.contractType">
-            <option value="FFP">Firm Fixed Price</option>
-            <option value="CPFF">Cost Plus Fixed Fee</option>
-            <option value="T_AND_M">T&amp;M</option>
-            <option value="IDIQ">IDIQ</option>
-            <option value="BPA">BPA</option>
-          </select>
-        </label>
-        <label><span class="label-text">Notice type</span>
-          <select name="noticeType" [(ngModel)]="model.noticeType">
-            <option value="RFI">RFI</option>
-            <option value="SOURCES_SOUGHT">Sources Sought</option>
-            <option value="RFP">RFP</option>
-            <option value="RFQ">RFQ</option>
-            <option value="COMBINED_SYNOPSIS">Combined Synopsis/Solicitation</option>
-          </select>
-        </label>
-        <label><span class="label-text">Ceiling ($)</span>
-          <input name="ceiling" type="number" [(ngModel)]="model.ceilingValue"/>
-        </label>
-      </div>
-      <label><span class="label-text">Description (public-facing)</span>
-        <textarea name="description" rows="4" [(ngModel)]="model.description"
-                  placeholder="Public solicitation description (rendered raw — see Debt Item 9)"></textarea>
-      </label>
+        <p class="step-hint" *ngIf="!step1Form.valid">
+          * required before Next — AI drafting needs this context (preflight
+          rejects ungrounded requests; ADR-0015).
+        </p>
+      </form>
     </div>
 
     <!-- Step 2: Section A — Solicitation/Contract Form (human-only) -->
@@ -127,6 +197,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="C"
         sectionTitle="Statement of Work"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionC || ''"
         [audit]="sections.sectionCAudit"
         placeholder="C.1 SCOPE…"
@@ -163,6 +235,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="H"
         sectionTitle="Special Contract Requirements"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionH || ''"
         [audit]="sections.sectionHAudit"
         placeholder="H.1 SPECIAL REQUIREMENTS…"
@@ -178,8 +252,17 @@ import { SectionCardComponent } from './section-card.component';
         Retrieved-only from FAR Part 52 based on contract type, set-aside, and ceiling.
         Not editable per ADR-0005 D4 — clauses are authoritative as published.
       </p>
-      <div class="retrieved-clauses">
-        <strong>Resolved clauses (sample — wired to /retrieve in C9):</strong>
+      <div class="retrieved-clauses" *ngIf="resolvedClauses.length > 0">
+        <strong>Resolved clauses (Part II programmatic resolution — ADR-0014 D3):</strong>
+        <ul>
+          <li *ngFor="let c of resolvedClauses">
+            <code>{{ c.citation }}</code> — {{ c.title }}
+            <span class="step-hint">({{ c.prescription }})</span>
+          </li>
+        </ul>
+      </div>
+      <div class="retrieved-clauses" *ngIf="resolvedClauses.length === 0">
+        <strong>Resolved clauses (sample — run "Draft AI Parts" to resolve):</strong>
         <ul>
           <li><code>52.212-4</code> — Contract Terms and Conditions, Commercial Items</li>
           <li><code>52.204-21</code> — Basic Safeguarding of Covered Contractor Info Systems</li>
@@ -222,6 +305,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="L"
         sectionTitle="Instructions to Offerors"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionL || ''"
         [audit]="sections.sectionLAudit"
         placeholder="L.1 GENERAL INSTRUCTIONS…"
@@ -236,6 +321,8 @@ import { SectionCardComponent } from './section-card.component';
         sectionLetter="M"
         sectionTitle="Evaluation Factors for Award"
         [solicitationId]="solicitationDraftId"
+        [step1Ready]="isStep1ContextReady()"
+        [draftMeta]="draftMeta"
         [text]="sections.sectionM || ''"
         [audit]="sections.sectionMAudit"
         placeholder="M.1 BASIS FOR AWARD…"
@@ -244,22 +331,108 @@ import { SectionCardComponent } from './section-card.component';
       </app-section-card>
     </div>
 
-    <!-- Step 12: Review + cross-section consistency check -->
+    <!-- Step 12: Review + cross-section consistency check (M1 Phase 4 —
+         critic agent; warn-only, never blocks the FAR 5.705 publish gate). -->
     <div class="card" *ngIf="step === 11">
       <h3>12. Review + cross-section consistency</h3>
       <p class="step-hint">
-        FAR 15.204-5: instructions in Section L must align with evaluation factors
-        in Section M. Warn-only structural check (Phase 1 heuristic; full check is
-        an open item — see spec §17).
+        Consistency critic (ADR-0013/0014): L↔M alignment (LLM), set-aside ↔
+        Section K reps (programmatic), CLIN coverage B↔C↔F↔L (programmatic).
+        Warn-only — Step 13 publish gating belongs to the CO, not the critic.
       </p>
-      <div *ngIf="consistencyWarnings.length > 0" class="consistency-warning">
-        <strong>Possible misalignment:</strong>
-        <ul>
-          <li *ngFor="let w of consistencyWarnings">{{ w }}</li>
-        </ul>
+
+      <div *ngIf="criticLoading" class="step-hint">Running consistency critic…</div>
+      <div *ngIf="criticError" class="consistency-warning">
+        {{ criticError }} Falling back to the local heuristic:
+        <ul><li *ngFor="let w of consistencyWarnings">{{ w }}</li></ul>
       </div>
-      <div *ngIf="consistencyWarnings.length === 0" class="consistency-ok">
-        No obvious L↔M misalignment detected (heuristic).
+
+      <ng-container *ngIf="criticReport && !criticLoading">
+        <!-- Known issue: critic agent loops (Nova Lite) — backend sends a
+             skipped report; CO must hand-review before publish. -->
+        <div *ngIf="criticReport.critic_skipped" class="consistency-warning critic-skipped-banner">
+          <strong>⚠ Consistency critic did not run.</strong>
+          {{ criticReport.skip_reason }}
+        </div>
+        <!-- L↔M alignment -->
+        <div [ngClass]="criticReport.lm_alignment.overall_severity === 'info' ? 'consistency-ok' : 'consistency-warning'">
+          <strong>L ↔ M alignment ({{ criticReport.lm_alignment.overall_severity }}):</strong>
+          <span *ngIf="criticReport.lm_alignment.mismatches.length === 0"> aligned ✓</span>
+          <ul *ngIf="criticReport.lm_alignment.mismatches.length > 0">
+            <li *ngFor="let m of criticReport.lm_alignment.mismatches">
+              [{{ m.severity }}] {{ m.type }} — {{ m.rationale }}
+              <button class="secondary fix-link" (click)="step = 9">Fix Section L →</button>
+              <button class="secondary fix-link" (click)="step = 10">Fix Section M →</button>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Set-aside ↔ Section K -->
+        <div [ngClass]="criticReport.set_aside_consistency.overall_severity === 'info' ? 'consistency-ok' : 'consistency-warning'">
+          <strong>Set-aside ↔ Section K ({{ criticReport.set_aside_consistency.overall_severity }}):</strong>
+          <span *ngIf="criticReport.set_aside_consistency.mismatches.length === 0"> consistent ✓</span>
+          <ul *ngIf="criticReport.set_aside_consistency.mismatches.length > 0">
+            <li *ngFor="let m of criticReport.set_aside_consistency.mismatches">
+              <span *ngIf="m.missing.length">
+                {{ m.set_aside }}: Section K missing {{ m.missing.join(', ') }}
+                <button class="secondary fix-link" (click)="step = 8">Fix Section K →</button>
+              </span>
+              <span *ngIf="!m.missing.length && m.extra.length">
+                extra reps beyond {{ m.set_aside }} requirement: {{ m.extra.join(', ') }}
+              </span>
+              <span *ngIf="!m.missing.length && !m.extra.length">
+                {{ m.set_aside }} reps consistent ✓
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- CLIN coverage -->
+        <div [ngClass]="criticReport.clin_coverage.overall_severity === 'info' ? 'consistency-ok' : 'consistency-warning'">
+          <strong>CLIN coverage B↔C↔F↔L ({{ criticReport.clin_coverage.overall_severity }}):</strong>
+          <span *ngIf="criticReport.clin_coverage.gaps.length === 0"> all CLINs referenced ✓</span>
+          <ul *ngIf="criticReport.clin_coverage.gaps.length > 0">
+            <li *ngFor="let g of criticReport.clin_coverage.gaps">
+              <span *ngIf="g.clin_id !== '<n/a>'">
+                [{{ g.severity }}] CLIN {{ g.clin_id }} not referenced in Section{{ g.missing_in.length > 1 ? 's' : '' }} {{ g.missing_in.join(', ') }}
+                <button class="secondary fix-link" *ngFor="let s of g.missing_in"
+                        (click)="step = stepForSection(s)">Fix Section {{ s }} →</button>
+              </span>
+              <span *ngIf="g.clin_id === '<n/a>'">Section B empty — CLIN check skipped.</span>
+            </li>
+          </ul>
+        </div>
+
+        <p class="step-hint">
+          Critic run {{ criticReport.run_id }} · overall {{ criticReport.overall_severity }} ·
+          blocks_submit={{ criticReport.blocks_submit }} (Phase 1 invariant: always false)
+        </p>
+      </ng-container>
+
+      <!-- DEMO-REDESIGN-spec §6 — full editable review: every section A–M is
+           readable + editable here, the main review surface for generate-and-review. -->
+      <h4 style="margin-top:1rem">All sections — review &amp; edit</h4>
+      <p class="step-hint">
+        Generate-and-review: the AI drafted what it safely could; edit any section
+        below before submit. AI-drafted sections show a provenance badge.
+      </p>
+      <div *ngFor="let s of reviewSections" class="review-section">
+        <label>
+          <span class="label-text">
+            Section {{ s.letter }} — {{ s.title }}
+            <span class="prov-badge" [attr.data-prov]="provenanceFor(s.letter)">{{ provenanceFor(s.letter) }}</span>
+          </span>
+          <textarea rows="6" [ngModel]="sectionText(s.letter)" [ngModelOptions]="{standalone: true}"
+                    (ngModelChange)="onHumanEdit(s.letter, $event)"
+                    [placeholder]="'Section ' + s.letter + ' — empty; type or run Draft AI Parts'"></textarea>
+        </label>
+      </div>
+      <div class="review-section">
+        <span class="label-text">Section I — Contract Clauses (Part II, retrieved-only)</span>
+        <p class="step-hint" *ngIf="resolvedClauses.length">
+          {{ resolvedClauses.length }} clause(s) resolved programmatically (see Step 7) — not editable.
+        </p>
+        <p class="step-hint" *ngIf="!resolvedClauses.length">Resolves on "Draft AI Parts".</p>
       </div>
 
       <table style="margin-top:0.75rem">
@@ -301,7 +474,11 @@ import { SectionCardComponent } from './section-card.component';
     <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:space-between">
       <button class="secondary" (click)="back()" [disabled]="step === 0">← Back</button>
       <div>
-        <button *ngIf="step < steps.length - 1" (click)="next()">Next →</button>
+        <button *ngIf="step < steps.length - 1" (click)="next()"
+                [disabled]="step === 0 && !step1Form.valid"
+                [title]="step === 0 && !step1Form.valid ? 'Complete required Step 1 fields first' : ''">
+          Next →
+        </button>
       </div>
     </div>
 
@@ -336,6 +513,14 @@ import { SectionCardComponent } from './section-card.component';
   `,
   styles: [`
     .step-hint { font-size: 0.85rem; color: var(--color-fg-muted); }
+    .batch-bar { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.75rem 1rem; }
+    .batch-hitl { display: flex; flex-direction: column; gap: 0.4rem; }
+    .gate-banner--hitl {
+      background: #fff8e1; color: #6d4c00; border: 1px solid #e6c352;
+      padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem;
+    }
+    .hitl-actions { display: inline-flex; gap: 0.4rem; margin-left: 0.6rem; }
+    .fix-link { font-size: 0.75rem; padding: 0.05rem 0.4rem; margin-left: 0.4rem; }
     .retrieved-clauses ul { font-family: monospace; font-size: 0.85rem; }
     .consistency-warning {
       background: #fff4e5; border: 1px solid #f3c089; color: #7a3e00;
@@ -349,6 +534,16 @@ import { SectionCardComponent } from './section-card.component';
       background: #fdecea; border: 1px solid #f4a09b; color: #8b1a17;
       padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.85rem;
     }
+    .review-section { margin: 0.6rem 0; }
+    .review-section textarea { width: 100%; font-family: inherit; }
+    .prov-badge {
+      font-size: 0.7rem; padding: 0.05rem 0.4rem; border-radius: 10px;
+      margin-left: 0.4rem; vertical-align: middle; text-transform: uppercase;
+      background: #eee; color: #555;
+    }
+    .prov-badge[data-prov="ai"] { background: #e3f0ff; color: #1457a8; }
+    .prov-badge[data-prov="ai-edited"] { background: #fff3d6; color: #8a5a00; }
+    .prov-badge[data-prov="human"] { background: #e9f7ec; color: #1b5e20; }
     .modal-backdrop {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.45);
@@ -398,16 +593,181 @@ export class SolicitationWizardComponent {
     naics: '',
     setAside: 'FULL_AND_OPEN',
     contractType: 'FFP',
+    agencySupplement: '',
     noticeType: 'RFP',
     ceilingValue: undefined,
+    periodOfPerformance: '',
+    placeOfPerformance: '',
+    evalApproach: 'TRADEOFF',
+    keyPersonnel: '',
   };
+
+  /** Step 1 reactive form (ADR-0015 D4) — 5 hard-required fields. */
+  step1Form: FormGroup;
 
   sections: SolicitationSections = {};
 
   showSubmitModal = false;
   submitApprovalChecked = false;
 
-  constructor(private svc: SolicitationService, private router: Router) {}
+  constructor(
+    private fb: FormBuilder,
+    private svc: SolicitationService,
+    private router: Router,
+  ) {
+    this.step1Form = this.fb.group({
+      title: ['', Validators.required],
+      agencyId: ['GSA-FAS', Validators.required],
+      naics: ['', Validators.required],
+      setAside: ['FULL_AND_OPEN', Validators.required],
+      contractType: ['FFP', Validators.required],
+      // optional:
+      agencySupplement: [''],
+      noticeType: ['RFP'],
+      ceilingValue: [null],
+      periodOfPerformance: [''],
+      placeOfPerformance: [''],
+      evalApproach: ['TRADEOFF'],
+      keyPersonnel: [''],
+      description: [''],
+    });
+    // Keep the legacy `model` object in sync — review table + submit payload
+    // read from it; the form is the single editing surface.
+    this.step1Form.valueChanges.subscribe((v) => Object.assign(this.model, v));
+  }
+
+  /** AI-draft buttons + Next gate read this (design ref §19.7). */
+  isStep1ContextReady(): boolean {
+    return this.step1Form.valid;
+  }
+
+  /** ── M1 Phase 3 — batch drafting state (ADR-0014) ── */
+  batchDrafting = false;
+  batchResuming = false;
+  batchError: string | null = null;
+  batchRunId: string | null = null;
+  batchPendingInterrupts: PendingToolCall[] = [];
+  resolvedClauses: FARClauseReference[] = [];
+
+  asList(v: unknown): string {
+    return Array.isArray(v) ? v.join(', ') : String(v ?? '');
+  }
+
+  private currentProvenances(): Record<string, string | null> {
+    const out: Record<string, string | null> = {};
+    for (const s of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M']) {
+      const audit = (this.sections as any)[`section${s}Audit`] as SectionAudit | undefined;
+      out[s] = audit?.provenance ?? null;
+    }
+    return out;
+  }
+
+  onDraftAiParts(): void {
+    this.batchDrafting = true;
+    this.batchError = null;
+    const meta = this.draftMeta;
+    this.svc.draftBatch({
+      solicitation_id: this.solicitationDraftId,
+      naics: meta.naics,
+      set_aside: meta.setAside,
+      contract_type: meta.contractType,
+      agency_supplement: meta.agencySupplement,
+      period_of_performance: meta.periodOfPerformance,
+      place_of_performance: meta.placeOfPerformance,
+      eval_approach: meta.evalApproach,
+      key_personnel: meta.keyPersonnel,
+      user_constraints_by_section: {},
+      provenances: this.currentProvenances(),
+      part_iii_attachments: [],
+    }).subscribe({
+      next: (bundle) => {
+        this.batchDrafting = false;
+        this.applyBundle(bundle);
+      },
+      error: (err) => {
+        this.batchDrafting = false;
+        this.batchError =
+          err?.status === 422
+            ? 'Batch rejected — complete Step 1 (preflight requires full metadata).'
+            : 'Batch drafting failed; draft sections individually or retry.';
+      },
+    });
+  }
+
+  onBatchDecision(p: PendingToolCall, decision: 'approve' | 'reject'): void {
+    if (!this.batchRunId) return;
+    const sections = (p.args['sections'] as string[]) || [];
+    const decisions: BatchPerSectionDecision[] = [
+      { section_id: (sections[0] as any) ?? 'L', decision },
+    ];
+    this.batchResuming = true;
+    this.svc.resumeBatch(this.batchRunId, decisions).subscribe({
+      next: (bundle) => {
+        this.batchResuming = false;
+        this.applyBundle(bundle);
+      },
+      error: () => {
+        this.batchResuming = false;
+        this.batchError = 'Batch resume failed; retry or draft sections individually.';
+      },
+    });
+  }
+
+  /** Spread a SolicitationDraftBundle into the wizard's section state. */
+  private applyBundle(bundle: SolicitationDraftBundle): void {
+    this.batchRunId = bundle.batch_run_id;
+    this.batchPendingInterrupts =
+      bundle.overall_outcome === 'batch_interrupted' ? bundle.pending_interrupts : [];
+
+    for (const part of Object.values(bundle.parts)) {
+      if (!part) continue;
+      if (part.kind === 'llm_drafted') {
+        for (const [sid, raw] of Object.entries(part.sections)) {
+          const final = raw as DraftSectionResponse | null;
+          if (!final || typeof final !== 'object' || !('outcome' in final)) continue;
+          if (final.outcome === 'draft_returned' && final.section_text) {
+            (this.sections as any)[`section${sid}`] = final.section_text;
+            (this.sections as any)[`section${sid}Audit`] = {
+              provenance: 'ai',
+              aiRequestId: final.request_id,
+              runId: final.run_id ?? null,
+              lastEditedAt: new Date().toISOString(),
+              lastRerankTopScore: final.rerank_top_score,
+              lastGateDecision: final.gate_decision,
+            } as SectionAudit;
+          }
+        }
+      } else if (part.kind === 'programmatic_resolved') {
+        const clauseList = part.sections['I'] as PartIIClauseList | null;
+        this.resolvedClauses = clauseList?.clauses_by_reference ?? [];
+      }
+      // 'wizard_provided' (Part III) — wizard already owns Section J state.
+    }
+  }
+
+  /** Step 1 metadata injected into every draftSection payload (ADR-0015 D3). */
+  get draftMeta(): {
+    naics: string | null;
+    setAside: string | null;
+    contractType: string | null;
+    agencySupplement: string | null;
+    periodOfPerformance: string | null;
+    placeOfPerformance: string | null;
+    evalApproach: string | null;
+    keyPersonnel: string | null;
+  } {
+    const v = this.step1Form.value;
+    return {
+      naics: v.naics || null,
+      setAside: v.setAside || null,
+      contractType: v.contractType || null,
+      agencySupplement: v.agencySupplement || null,
+      periodOfPerformance: v.periodOfPerformance || null,
+      placeOfPerformance: v.placeOfPerformance || null,
+      evalApproach: v.evalApproach || null,
+      keyPersonnel: v.keyPersonnel || null,
+    };
+  }
 
   back(): void {
     if (this.step > 0) this.step--;
@@ -415,6 +775,44 @@ export class SolicitationWizardComponent {
 
   next(): void {
     if (this.step < this.steps.length - 1) this.step++;
+    // Step 12 (index 11) auto-invokes the consistency critic (P4.3).
+    if (this.step === 11) this.runCritic();
+  }
+
+  /** ── M1 Phase 4 — Step 12 consistency critic state ── */
+  criticLoading = false;
+  criticError: string | null = null;
+  criticReport: ConsistencyReport | null = null;
+
+  stepForSection(s: string): number {
+    const map: Record<string, number> = {
+      A: 1, B: 2, C: 3, D: 4, E: 4, F: 4, G: 4, H: 5, J: 7, K: 8, L: 9, M: 10,
+    };
+    return map[s] ?? 11;
+  }
+
+  runCritic(): void {
+    this.criticLoading = true;
+    this.criticError = null;
+    const sections: Record<string, string | null> = {};
+    for (const s of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M']) {
+      sections[s] = ((this.sections as any)[`section${s}`] as string | undefined) || null;
+    }
+    this.svc.critic({
+      solicitation_id: this.solicitationDraftId,
+      sections,
+      set_aside: this.step1Form.value.setAside || null,
+    }).subscribe({
+      next: (report) => {
+        this.criticLoading = false;
+        this.criticReport = report;
+      },
+      error: () => {
+        this.criticLoading = false;
+        this.criticReport = null;
+        this.criticError = 'Consistency critic unavailable.';
+      },
+    });
   }
 
   /** Human-edited text-only section: spec §5 null→human; subsequent edits preserve provenance. */
@@ -436,6 +834,27 @@ export class SolicitationWizardComponent {
       lastRerankTopScore: existing?.lastRerankTopScore ?? null,
       lastGateDecision: existing?.lastGateDecision ?? null,
     } as SectionAudit;
+  }
+
+  /** Editable section list for the Step 12 review surface (I excluded —
+   *  retrieved-only clause list; DEMO-REDESIGN-spec §6). */
+  reviewSections: { letter: string; title: string }[] = [
+    { letter: 'A', title: 'Solicitation/Contract Form' },
+    { letter: 'B', title: 'Supplies/Services + Prices' },
+    { letter: 'C', title: 'Statement of Work' },
+    { letter: 'D', title: 'Packaging and Marking' },
+    { letter: 'E', title: 'Inspection and Acceptance' },
+    { letter: 'F', title: 'Deliveries or Performance' },
+    { letter: 'G', title: 'Contract Administration Data' },
+    { letter: 'H', title: 'Special Contract Requirements' },
+    { letter: 'J', title: 'List of Attachments' },
+    { letter: 'K', title: 'Representations & Certifications' },
+    { letter: 'L', title: 'Instructions to Offerors' },
+    { letter: 'M', title: 'Evaluation Factors for Award' },
+  ];
+
+  sectionText(letter: string): string {
+    return ((this.sections as any)[`section${letter}`] as string | undefined) || '';
   }
 
   provenanceFor(sectionLetter: string): string {

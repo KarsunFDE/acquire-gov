@@ -59,19 +59,19 @@ Update inline as PRs land. Mark `[x]` after merge to `cj/m2-integration` (or whi
 
 ### P0.1 — Schemas
 
-- [ ] Create `services/ai-orchestrator/app/agents/__init__.py`.
-- [ ] Create `services/ai-orchestrator/app/agents/schemas.py` containing every model named in tracker §4 Phase 0 exit gate.
-- [ ] Every model uses `model_config = ConfigDict(extra="forbid")` (per spec §6.2 invariant).
-- [ ] Every `Literal` enum matches its ADR source exactly (section_id ∈ `{A,B,C,D,E,F,G,H,J,K,L,M}` — no I — per ADR-0012 D3).
-- [ ] Add `tests/agents/schemas/test_*_round_trip.py` per model: serialize → deserialize → equality.
-- [ ] Add unknown-field rejection tests (extra='forbid' enforced).
-- [ ] Update `services/ai-orchestrator/pytest.ini` to register `req_aid_1` marker.
-- [ ] Run `pytest services/ai-orchestrator/tests/ -q` — all M2 tests + new schema tests pass.
+- [x] Create `services/ai-orchestrator/app/agents/__init__.py`.
+- [x] Create `services/ai-orchestrator/app/agents/schemas.py` containing every model named in tracker §4 Phase 0 exit gate.
+- [x] Every model uses `model_config = ConfigDict(extra="forbid")` (per spec §6.2 invariant).
+- [x] Every `Literal` enum matches its ADR source exactly (section_id ∈ `{A,B,C,D,E,F,G,H,J,K,L,M}` — no I — per ADR-0012 D3).
+- [x] Add `tests/agents/schemas/test_*_round_trip.py` per model: serialize → deserialize → equality. *(landed as one parametrized `test_round_trip.py` over `samples.py` — same coverage, 35 models)*
+- [x] Add unknown-field rejection tests (extra='forbid' enforced).
+- [x] Update `services/ai-orchestrator/pytest.ini` to register `req_aid_1` marker.
+- [x] Run `pytest services/ai-orchestrator/tests/ -q` — all M2 tests + new schema tests pass.
 
 ### P0.2 — Config
 
-- [ ] Extend `app/config.py` with all knobs from the design reference §6 (ADR-0012) + §18.6 (ADR-0013/0014) + §19 (ADR-0015).
-- [ ] Required new knobs:
+- [x] Extend `app/config.py` with all knobs from the design reference §6 (ADR-0012) + §18.6 (ADR-0013/0014) + §19 (ADR-0015).
+- [x] Required new knobs:
   - `BEDROCK_EXTRACT_MODEL` (default `amazon.nova-lite-v1:0`)
   - `BEDROCK_CRITIC_MODEL` (default `amazon.nova-lite-v1:0`)
   - `BEDROCK_EXTRACT_MAX_RETRIES` (default 1)
@@ -87,17 +87,17 @@ Update inline as PRs land. Mark `[x]` after merge to `cj/m2-integration` (or whi
   - `LANGSMITH_TRACING` (default False)
   - `LANGSMITH_API_KEY` (default None)
   - `LANGSMITH_PROJECT` (default `acquire-gov-m1-draft`)
-- [ ] Update `.env.example` with every new key + a one-line comment.
-- [ ] Add `tests/test_config_knobs.py` — assert every new attr is reachable on `config` module and has the documented default.
+- [x] Update `.env.example` with every new key + a one-line comment.
+- [x] Add `tests/test_config_knobs.py` — assert every new attr is reachable on `config` module and has the documented default.
 
 ### P0.3 — Checkpointer
 
-- [ ] Create `services/ai-orchestrator/app/agents/checkpointer.py`:
+- [x] Create `services/ai-orchestrator/app/agents/checkpointer.py`:
   - `build_mongodb_saver()` — `lru_cache(maxsize=1)`d factory.
   - `thread_id_for(*, solicitation_id, section_id, request_id)` — pure helper.
   - `parse_thread_id(thread_id)` — inverse; raises on malformed.
-- [ ] Add `tests/agents/test_checkpointer.py` — integration test against atlas-local: write a checkpoint, read it back, verify TTL=None.
-- [ ] Verify `agent_checkpoints` + `agent_checkpoint_writes` collections exist after the test.
+- [x] Add `tests/agents/test_checkpointer.py` — integration test against atlas-local: write a checkpoint, read it back, verify TTL=None. *(auto-skips when atlas-local is down; unit tests for thread_id helpers always run)*
+- [x] Verify `agent_checkpoints` + `agent_checkpoint_writes` collections exist after the test. *(asserted inside the integration test)*
 
 ## 7. In-progress checklist (crash recovery — what to do mid-phase)
 

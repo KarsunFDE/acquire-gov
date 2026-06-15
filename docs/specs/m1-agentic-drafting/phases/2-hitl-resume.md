@@ -97,49 +97,49 @@ P2.1 + P2.3 + P2.4 can start in parallel after Phase 1. P2.2 sequences after P2.
 
 ### P2.1 — Middleware fire-rule
 
-- [ ] `app/agents/middleware/hitl_gate.py::_interrupt_on_hitl_band` now returns True for the hitl band per ADR-0012 D6.
-- [ ] Add unit test fixtures for the three score bands: 0.0 (withhold, no interrupt), 0.45 (hitl, interrupt), 0.85 (pass, no interrupt), None (passthrough, no interrupt).
-- [ ] Integration test: build SectionDrafterAgent + mock retriever returning score=0.45 + invoke → assert agent raises `GraphInterrupt` and the checkpoint exists in Mongo.
-- [ ] `req_rag_3` regression still passes.
+- [x] `app/agents/middleware/hitl_gate.py::_interrupt_on_hitl_band` now returns True for the hitl band per ADR-0012 D6.
+- [x] Add unit test fixtures for the three score bands: 0.0 (withhold, no interrupt), 0.45 (hitl, interrupt), 0.85 (pass, no interrupt), None (passthrough, no interrupt).
+- [x] Integration test: build SectionDrafterAgent + mock retriever returning score=0.45 + invoke → assert agent raises `GraphInterrupt` and the checkpoint exists in Mongo.
+- [x] `req_rag_3` regression still passes.
 
 ### P2.2 — /resume
 
-- [ ] `app/api/resume.py` with `POST /draft-solicitation/section/resume` handler per spec §4.2.
-- [ ] `ResumeSectionRequest` Pydantic — already in P0 schemas.
-- [ ] Status codes: 200 success, 404 run_not_found, 403 tenant_mismatch, 409 run_not_paused, 422 edited_args_required.
-- [ ] Audit row writer for `action="agent_resume"`.
-- [ ] Integration tests: approve → draft_returned; edit → with edited rerank_top_score; reject → withheld.
-- [ ] Mount route in `app/main.py`.
+- [x] `app/api/resume.py` with `POST /draft-solicitation/section/resume` handler per spec §4.2.
+- [x] `ResumeSectionRequest` Pydantic — already in P0 schemas.
+- [x] Status codes: 200 success, 404 run_not_found, 403 tenant_mismatch, 409 run_not_paused, 422 edited_args_required.
+- [x] Audit row writer for `action="agent_resume"`.
+- [x] Integration tests: approve → draft_returned; edit → with edited rerank_top_score; reject → withheld.
+- [x] Mount route in `app/main.py`.
 
 ### P2.3 — /abandon + sweeper
 
-- [ ] `app/api/abandon.py` with `POST /draft-solicitation/section/abandon` handler.
-- [ ] Audit row writer for `action="agent_abandon"`.
-- [ ] `app/sweeper.py` with `sweep_orphan_threads()` async function per spec §6.3.
-- [ ] Wire sweeper into `app/main.py` lifespan startup task.
-- [ ] Sweeper unit test using forced clock (`freezegun` or manual override).
+- [x] `app/api/abandon.py` with `POST /draft-solicitation/section/abandon` handler.
+- [x] Audit row writer for `action="agent_abandon"`.
+- [x] `app/sweeper.py` with `sweep_orphan_threads()` async function per spec §6.3.
+- [x] Wire sweeper into `app/main.py` lifespan startup task.
+- [x] Sweeper unit test using forced clock (`freezegun` or manual override).
 
 ### P2.4 — Frontend interrupt UI
 
-- [ ] `frontend/src/app/models/solicitation.ts` — `SectionAudit` interface gains `runId?: string`.
-- [ ] `solicitation.service.ts::resumeSection(runId, decision, editedArgs?, reason?)` per spec §12.5.
-- [ ] `solicitation.service.ts::abandonSection(runId, reason?)` per spec §12.5.
-- [ ] `section-card.component.ts` adds render branch for `lastResponse.outcome === "interrupted"`:
+- [x] `frontend/src/app/models/solicitation.ts` — `SectionAudit` interface gains `runId?: string`.
+- [x] `solicitation.service.ts::resumeSection(runId, decision, editedArgs?, reason?)` per spec §12.5.
+- [x] `solicitation.service.ts::abandonSection(runId, reason?)` per spec §12.5.
+- [x] `section-card.component.ts` adds render branch for `lastResponse.outcome === "interrupted"`:
   - Renders pending_tool_call.reason as a yellow info banner.
   - 3 buttons: Approve / Edit / Reject.
   - Edit opens a small modal with editable args (Phase 1: just `rerank_top_score` slider).
   - On click → calls resumeSection() → re-renders on response.
-- [ ] "Discard AI-draft" button visible on interrupt → calls abandonSection() → clears UI state.
-- [ ] Unit tests via `*.component.spec.ts`.
+- [x] "Discard AI-draft" button visible on interrupt → calls abandonSection() → clears UI state.
+- [x] Unit tests via `*.component.spec.ts`.
 
 ### P2.5 — End-to-end pause + restart test
 
-- [ ] Integration test in `tests/api/test_pause_restart.py`:
+- [x] Integration test in `tests/api/test_pause_restart.py`:
   - Force a score=0.45 → POST /section → interrupt response.
   - Capture run_id from response.
   - Restart the uvicorn process (or recreate the MongoDBSaver singleton).
   - POST /section/resume with the same run_id → assert it resumes from checkpoint and completes.
-- [ ] Add to `m1-handoff.md` (or `m2-grounded-retrieval/handoff.md` if reusing): instructions to reproduce the pause-restart flow manually.
+- [x] Add to `m1-handoff.md` (or `m2-grounded-retrieval/handoff.md` if reusing): instructions to reproduce the pause-restart flow manually.
 
 ## 8. In-progress checklist (crash recovery)
 
@@ -154,4 +154,11 @@ See tracker §4 Phase 2.
 
 ## 10. Handoff notes
 
-(empty)
+**2026-06-11 (Phase 2 complete on `cj/m1-langchain-integration`):**
+
+- Middleware lit up via `InterruptOnConfig(when=_interrupt_on_hitl_band)` — langchain 1.3.7 API confirmed (predicate receives `ToolCallRequest`; resume payload is `Command(resume={"decisions": [...]})` with `edited_action` for edits).
+- Graph-level pause/resume proven against the REAL `create_agent` graph with a scripted fake model: interrupt-before-tool-spend, approve→draft, reject→withheld, edit→re-run-with-edited-args, pass-band no-interrupt (tests/agents/test_hitl_interrupt_resume.py, 16 green).
+- Restart-survival test (`tests/api/test_pause_restart.py`) clears the `build_mongodb_saver` lru_cache to simulate uvicorn restart; auto-skips when atlas-local is down — run it with the compose stack up for the exit gate.
+- Tenant check on /resume reads `snapshot.metadata.tenant_id` (set via invoke `config["metadata"]`); falls open when metadata absent — verify against live Mongo during smoke.
+- Sweeper ages checkpoints via ObjectId generation time (portable across saver versions); marks, never deletes.
+- Stub-mode (no Bedrock creds) never interrupts — stub path returns requires_human_review instead; HITL needs the real agent loop.

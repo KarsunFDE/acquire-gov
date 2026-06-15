@@ -126,6 +126,18 @@ services:
       #   .env drive the model. (AWS creds from .env are NOT shadowed.)
       BEDROCK_MODEL_ID: anthropic.claude-3-7-sonnet-20250219-v1:0
       MONGO_URL: mongodb://app:app_dev_password@mongodb:27017/?directConnection=true
+      # app.config reads MONGO_URI (ADR-0008 D3); MONGO_URL above is legacy.
+      MONGO_URI: mongodb://app:app_dev_password@mongodb:27017/?directConnection=true
+      # Part II programmatic clause resolution (ADR-0014 D3) reads the
+      # hash-pinned matrix from the read-only docs mount below.
+      CLAUSE_MATRIX_PATH: /repo-docs/reference/far/clause_applicability.json
+      # DEMO-REDESIGN-spec §0 — demo-day stub while the Bedrock key is rolled.
+      # ALL generation returns canned, realistic content (no Bedrock spend) so
+      # the full frontend flow works end-to-end. Flip back to "true" if the key
+      # rolls again. LIVE as of 2026-06-15 (fresh AWS_BEARER_TOKEN_BEDROCK).
+      AI_STUB_MODE: "false"
+    volumes:
+      - ../../docs:/repo-docs:ro
     # ⚠ no healthcheck
 
   frontend:

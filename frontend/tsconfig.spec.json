@@ -1,0 +1,9 @@
+/* Test typings for karma+jasmine (M1 P1.5/P1.6 specs). */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec",
+    "types": ["jasmine"]
+  },
+  "include": ["src/**/*.spec.ts", "src/**/*.d.ts"]
+}
