@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M1 end-to-end smoke (P5.3) — exercises Phases 1–4 in one CLI run.
+# M1 end-to-end smoke (P5.3) - exercises Phases 1-4 in one CLI run.
 #
 #   1. (optional --reseed) clean atlas-local collections + reseed corpus
 #   2. POST /draft-solicitation/batch with all 4 AI sections null
@@ -32,7 +32,7 @@ print("dropped collections")
 PY
     python -m seed.run_seed
   else
-    echo "::warning:: seed/run_seed.py not present — skipping reseed"
+    echo "::warning:: seed/run_seed.py not present - skipping reseed"
   fi
 fi
 
@@ -46,7 +46,7 @@ BATCH="$(curl -sS -X POST "${BASE_URL}/draft-solicitation/batch" \
     \"contract_type\": \"FFP\", \"agency_supplement\": \"GSAM\",
     \"user_constraints_by_section\": {\"C\": \"quarterly deliverable cadence\", \"L\": \"max 25 page proposal\"},
     \"provenances\": {\"C\": null, \"H\": null, \"L\": null, \"M\": null},
-    \"part_iii_attachments\": [{\"title\": \"Attachment 1 — PPQ\", \"page_count\": 4}]
+    \"part_iii_attachments\": [{\"title\": \"Attachment 1 - PPQ\", \"page_count\": 4}]
   }")"
 OUTCOME="$(echo "${BATCH}" | jq -r '.overall_outcome')"
 BATCH_RUN_ID="$(echo "${BATCH}" | jq -r '.batch_run_id')"
@@ -59,11 +59,11 @@ if [ "${OUTCOME}" = "batch_interrupted" ]; then
   BATCH="$(curl -sS -X POST "${BASE_URL}/draft-solicitation/batch/resume" \
     -H "X-Tenant-ID: ${TENANT}" -H "X-Request-ID: ${REQ_ID}-r" \
     -H "Content-Type: application/json" \
-    -d "{\"batch_run_id\": \"${BATCH_RUN_ID}\", \"decisions\": ${DECISIONS}}")"
+    --data-binary @- <<<"{\"batch_run_id\": \"${BATCH_RUN_ID}\", \"decisions\": ${DECISIONS}}")"
   OUTCOME="$(echo "${BATCH}" | jq -r '.overall_outcome')"
   echo "    post-resume overall_outcome=${OUTCOME}"
 else
-  echo "== [2/4] no interrupts — skip resume"
+  echo "== [2/4] no interrupts - skip resume"
 fi
 [ "${OUTCOME}" = "batch_completed" ] || { echo "FAIL: batch did not complete"; echo "${BATCH}" | jq .; exit 1; }
 echo "${BATCH}" | jq -e '.consistency_report != null and .consistency_report.blocks_submit == false' >/dev/null \
@@ -74,10 +74,14 @@ SECTIONS="$(echo "${BATCH}" | jq -c '[.parts[] | select(.kind == "llm_drafted") 
 CRITIC="$(curl -sS -X POST "${BASE_URL}/draft-solicitation/critic" \
   -H "X-Tenant-ID: ${TENANT}" -H "X-Request-ID: ${REQ_ID}-c" \
   -H "Content-Type: application/json" \
-  -d "{\"solicitation_id\": \"${SOL_ID}\", \"set_aside\": \"SDVOSB\", \"sections\": ${SECTIONS}}")"
+  --data-binary @- <<<"{\"solicitation_id\": \"${SOL_ID}\", \"set_aside\": \"SDVOSB\", \"sections\": ${SECTIONS}}")"
 echo "${CRITIC}" | jq -e '.blocks_submit == false' >/dev/null \
   || { echo "FAIL: critic blocks_submit must be false"; exit 1; }
-echo "    critic overall_severity=$(echo "${CRITIC}" | jq -r '.overall_severity') ✓"
+if [ "$(echo "${CRITIC}" | jq -r '.critic_skipped // false')" = "true" ]; then
+  echo "    ⚠ critic_skipped=true (known issue) - CO must review manually"
+else
+  echo "    critic overall_severity=$(echo "${CRITIC}" | jq -r '.overall_severity') ✓"
+fi
 
 echo "== [4/4] audit join check (Mongo direct)"
 python - "$BATCH_RUN_ID" <<'PY' || echo "::warning:: audit join check skipped (Mongo unreachable)"
@@ -92,4 +96,4 @@ print(f"audit rows joined on batch run_id: {len(rows)} coordinator + {len(parts)
 assert rows, "no batch_coordinator_run audit row"
 PY
 
-echo "== M1 E2E SMOKE GREEN (Step 13 publish modal remains a wizard-side CO act — FAR 5.705)"
+echo "== M1 E2E SMOKE GREEN (Step 13 publish modal remains a wizard-side CO act - FAR 5.705)"

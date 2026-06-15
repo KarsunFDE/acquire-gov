@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M1 Phase 3 batch smoke (P3.8) — design ref §18.12.3 per-Part fan-out.
+# M1 Phase 3 batch smoke (P3.8) - design ref §18.12.3 per-Part fan-out.
 #
 # Prereqs: compose stack up + seeded corpus; AWS_BEARER_TOKEN_BEDROCK for
 # real-Bedrock Part drafting.
@@ -28,7 +28,7 @@ RESP="$(curl -sS -X POST "${BASE_URL}/draft-solicitation/batch" \
     },
     "provenances": {"C": null, "H": null, "L": null, "M": null},
     "part_iii_attachments": [
-      {"title": "Attachment 1 — Past performance questionnaire", "date": "2026-06-10", "page_count": 4, "filename": "att1.pdf"}
+      {"title": "Attachment 1 - Past performance questionnaire", "date": "2026-06-10", "page_count": 4, "filename": "att1.pdf"}
     ]
   }')"
 

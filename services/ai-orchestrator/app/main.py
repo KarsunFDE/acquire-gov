@@ -99,6 +99,23 @@ def _rate_limit_handler(_request, exc: RateLimitExceeded):  # type: ignore[no-un
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+# CORS — defense-in-depth. Browser traffic normally flows SPA -> gateway ->
+# orchestrator (the gateway answers CORS), but allowing it here too covers
+# direct-to-orchestrator dev calls and the generated pair-projects. Permissive
+# dev posture: any origin, no credentials (callers send X-Tenant-ID headers,
+# not cookies). Tighten allow_origins for any non-dev deployment.
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402,PLC0415
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=".*",
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
+    max_age=3600,
+)
+
 app.include_router(retrieve_router)
 app.include_router(draft_router)
 app.include_router(ingest_router)

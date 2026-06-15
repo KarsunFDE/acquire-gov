@@ -11,10 +11,10 @@
     }
   },
   "base": [
-    {"citation": "52.212-4", "title": "Contract Terms and Conditions — Commercial Products and Commercial Services", "prescription": "FAR 12.301(b)(3)"},
+    {"citation": "52.212-4", "title": "Contract Terms and Conditions â€” Commercial Products and Commercial Services", "prescription": "FAR 12.301(b)(3)"},
     {"citation": "52.204-7", "title": "System for Award Management", "prescription": "FAR 4.1105(a)(1)"},
     {"citation": "52.204-21", "title": "Basic Safeguarding of Covered Contractor Information Systems", "prescription": "FAR 4.1903"},
-    {"citation": "52.215-1", "title": "Instructions to Offerors — Competitive Acquisition", "prescription": "FAR 15.209(a)"},
+    {"citation": "52.215-1", "title": "Instructions to Offerors â€” Competitive Acquisition", "prescription": "FAR 15.209(a)"},
     {"citation": "52.233-1", "title": "Disputes", "prescription": "FAR 33.215"}
   ],
   "set_aside": {
@@ -62,7 +62,7 @@
   },
   "agency_supplement": {
     "GSAM": [
-      {"citation": "552.212-4", "title": "Contract Terms and Conditions — Commercial Products and Commercial Services (FAR Deviation)", "prescription": "GSAM 512.301"}
+      {"citation": "552.212-4", "title": "Contract Terms and Conditions â€” Commercial Products and Commercial Services (FAR Deviation)", "prescription": "GSAM 512.301"}
     ],
     "DFARS": [
       {"citation": "252.204-7012", "title": "Safeguarding Covered Defense Information and Cyber Incident Reporting", "prescription": "DFARS 204.7304(c)"}

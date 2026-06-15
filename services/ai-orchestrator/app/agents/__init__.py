@@ -7,4 +7,8 @@ Sub-modules:
 - ``prompts``      — system prompts (Phase 1)
 - ``middleware``   — HITL gate middleware (Phase 2)
 - ``tools``        — programmatic + LLM tools (Phase 1)
+- ``bedrock_schema_compat`` — Anthropic tool-schema subset shim (installed here)
 """
+from app.agents import bedrock_schema_compat as _schema_compat
+
+_schema_compat.install()
