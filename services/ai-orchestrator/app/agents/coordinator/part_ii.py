@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
@@ -17,17 +18,33 @@ from app.agents.schemas import FARClauseReference, PartIIClauseList
 
 log = logging.getLogger("ai-orchestrator.coordinator.part_ii")
 
-# app/agents/coordinator/part_ii.py → parents[4] = services/ai-orchestrator,
-# parents[5] = repo root.
-_MATRIX_PATH = (
-    Path(__file__).resolve().parents[5]
-    / "docs" / "reference" / "far" / "clause_applicability.json"
-)
+
+def _matrix_path() -> Path:
+    """Resolve the clause-applicability matrix.
+
+    ``CLAUSE_MATRIX_PATH`` wins (the container mounts docs/reference/far
+    read-only and sets it); dev fallback climbs to the repo root —
+    app/agents/coordinator/part_ii.py → parents[5].
+    """
+    env_path = os.environ.get("CLAUSE_MATRIX_PATH")
+    if env_path:
+        return Path(env_path)
+    resolved = Path(__file__).resolve()
+    if len(resolved.parents) > 5:
+        candidate = (
+            resolved.parents[5]
+            / "docs" / "reference" / "far" / "clause_applicability.json"
+        )
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        "clause_applicability.json not found — set CLAUSE_MATRIX_PATH"
+    )
 
 
 @lru_cache(maxsize=1)
 def _load_matrix() -> dict:
-    with _MATRIX_PATH.open(encoding="utf-8") as f:
+    with _matrix_path().open(encoding="utf-8") as f:
         return json.load(f)
 
 

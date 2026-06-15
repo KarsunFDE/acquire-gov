@@ -116,6 +116,8 @@ def _resume_agent(
     result = agent.invoke(
         Command(resume=_decision_payload(body)),
         config={**cfg, "callbacks": [capture],
+                # DEMO-REDESIGN-spec §1 — bound the resumed Sonnet drafter loop.
+                "recursion_limit": config.DRAFTER_RECURSION_LIMIT,
                 "tags": ["m1", "draft-solicitation", "resume"],
                 "metadata": {"request_id": request_id, "tenant_id": tenant_id}},
     )

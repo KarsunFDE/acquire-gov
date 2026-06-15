@@ -17,8 +17,10 @@ are cheap to re-trigger from Step 12).
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from langchain.tools import tool
+from pydantic import BaseModel, ConfigDict
 
 from app import config
 from app.agents.schemas import LMAlignmentReport, LMMismatch
@@ -26,11 +28,30 @@ from app.agents.schemas import LMAlignmentReport, LMMismatch
 log = logging.getLogger("ai-orchestrator.critic.lm")
 
 
+class LMFindingsPayload(BaseModel):
+    """Model-facing inner schema — mismatch findings ONLY. Everything
+    derivable (overall_severity) or bookkeeping (model/tokens) is computed
+    by the tool; Nova Lite omits any field it considers secondary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mismatches: list[LMMismatch]
+
+
+_SEVERITY_ORDER = {"info": 0, "warn": 1, "fail": 2}
+
+
+def _max_severity(mismatches: list[LMMismatch]) -> Literal["info", "warn", "fail"]:
+    if not mismatches:
+        return "info"
+    return max((m.severity for m in mismatches), key=_SEVERITY_ORDER.__getitem__)
+
+
 def _critic_chat():
     """Factory — tests monkeypatch this."""
-    from langchain_aws import ChatBedrockConverse  # noqa: PLC0415 — lazy
+    from app.agents.model_factory import build_chat  # noqa: PLC0415 — lazy
 
-    return ChatBedrockConverse(model=config.BEDROCK_CRITIC_MODEL)
+    return build_chat(config.BEDROCK_CRITIC_MODEL, max_tokens=config.BEDROCK_CRITIC_MAX_TOKENS)
 
 
 def _lm_alignment_prompt(section_l: str, section_m: str) -> str:
@@ -45,10 +66,7 @@ def _lm_alignment_prompt(section_l: str, section_m: str) -> str:
         "- Every M factor should have a corresponding L instruction telling "
         "offerors what to submit → otherwise emit m_without_l with severity fail.\n"
         "- Vague or partial mappings → weak_mapping with severity warn.\n"
-        "- No issues → mismatches=[] and overall_severity=info.\n"
-        "- overall_severity is the max severity across mismatches.\n"
-        "- Set model to the placeholder string 'tool-filled'; set input_tokens "
-        "and output_tokens to 0 (the harness fills real values).\n\n"
+        "- No issues → mismatches=[].\n\n"
         f"SECTION L:\n{section_l}\n\nSECTION M:\n{section_m}"
     )
 
@@ -79,9 +97,9 @@ def verify_l_m_consistency(
             input_tokens=0,
             output_tokens=0,
         )
-    chat = _critic_chat().with_structured_output(LMAlignmentReport, include_raw=True)
+    chat = _critic_chat().with_structured_output(LMFindingsPayload, include_raw=True)
     result = chat.invoke(_lm_alignment_prompt(section_l, section_m))
-    parsed: LMAlignmentReport | None = result.get("parsed")
+    parsed: LMFindingsPayload | None = result.get("parsed")
     if parsed is None:
         # Single-pass critic — no fallback (design ref §18.8 test note).
         raise ValueError(
@@ -89,8 +107,10 @@ def verify_l_m_consistency(
         )
     raw = result.get("raw")
     usage = getattr(raw, "usage_metadata", None) or {}
-    return parsed.model_copy(update={
-        "model": config.BEDROCK_CRITIC_MODEL,
-        "input_tokens": int(usage.get("input_tokens", 0) or 0),
-        "output_tokens": int(usage.get("output_tokens", 0) or 0),
-    })
+    return LMAlignmentReport(
+        mismatches=parsed.mismatches,
+        overall_severity=_max_severity(parsed.mismatches),
+        model=config.BEDROCK_CRITIC_MODEL,
+        input_tokens=int(usage.get("input_tokens", 0) or 0),
+        output_tokens=int(usage.get("output_tokens", 0) or 0),
+    )

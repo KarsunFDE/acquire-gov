@@ -107,6 +107,9 @@ def _invoke_config(
             "co_user_id": co_user_id,
         },
         "callbacks": callbacks,
+        # DEMO-REDESIGN-spec §1 — bound the Sonnet drafter loop (was the
+        # langgraph-bound 9_999 default; the cost-runaway surface).
+        "recursion_limit": config.DRAFTER_RECURSION_LIMIT,
         "tags": ["m1", "draft-solicitation", f"section-{section_id}"],
         "metadata": {
             "request_id": request_id,
@@ -133,6 +136,35 @@ def _run_agent(
     for deterministic handler tests, or monkeypatch deeper (builder._harness_chat)
     for agent-loop tests.
     """
+    # DEMO-REDESIGN-spec §0 — demo-day stub: rich canned section, no Bedrock,
+    # no retrieval/Mongo dependency. Distinct from _stub_run (which needs the
+    # live corpus). Flip AI_STUB_MODE off for live generations.
+    if config.AI_STUB_MODE:
+        from app.stub_drafts import stub_section  # noqa: PLC0415
+
+        final = stub_section(
+            body.section_id,
+            title=body.solicitation_id,
+            naics=body.naics,
+            set_aside=body.set_aside,
+            eval_approach=getattr(body, "eval_approach", None),
+            request_id=request_id,
+            run_id=run_id,
+        )
+        # Boilerplate sections drafted standalone use the same generator as batch.
+        if body.section_id in ("D", "E", "F", "G", "K"):
+            from app.agents.boilerplate import generate_boilerplate  # noqa: PLC0415
+
+            gen = generate_boilerplate({
+                "title": body.solicitation_id, "naics": body.naics,
+                "set_aside": body.set_aside, "contract_type": body.contract_type,
+            })
+            if body.section_id in gen:
+                final = gen[body.section_id].model_copy(
+                    update={"request_id": request_id, "run_id": run_id}
+                )
+        return final, []
+
     if not _bedrock_creds_present():
         return _stub_run(body, query, tenant_id=tenant_id, request_id=request_id, run_id=run_id)
 

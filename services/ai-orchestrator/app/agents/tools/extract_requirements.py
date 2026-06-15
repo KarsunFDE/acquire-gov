@@ -37,9 +37,9 @@ class _ExtractPayload(BaseModel):
 
 def _extract_chat():
     """Factory — tests monkeypatch this."""
-    from langchain_aws import ChatBedrockConverse  # noqa: PLC0415 — lazy
+    from app.agents.model_factory import build_chat  # noqa: PLC0415 — lazy
 
-    return ChatBedrockConverse(model=config.BEDROCK_EXTRACT_MODEL)
+    return build_chat(config.BEDROCK_EXTRACT_MODEL, max_tokens=config.BEDROCK_EXTRACT_MAX_TOKENS)
 
 
 def _extract_prompt(user_constraints: str, section_id: str) -> str:

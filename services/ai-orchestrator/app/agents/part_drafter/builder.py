@@ -34,20 +34,22 @@ PART_DRAFTER_TOOLS = [
 
 def _harness_chat():
     """Harness model factory — tests monkeypatch this."""
-    from langchain_aws import ChatBedrockConverse  # noqa: PLC0415 — lazy
+    from app.agents.model_factory import build_chat  # noqa: PLC0415 — lazy
 
-    return ChatBedrockConverse(model=config.BEDROCK_GEN_MODEL)
+    return build_chat(config.BEDROCK_GEN_MODEL, max_tokens=config.BEDROCK_GEN_MAX_TOKENS)
 
 
 def build_part_drafter_agent(part: Literal["I", "IV"]):
     from langchain.agents import create_agent  # noqa: PLC0415 — lazy
+    from langchain.agents.structured_output import ToolStrategy  # noqa: PLC0415
 
     middleware = [m for m in (build_hitl_middleware(),) if m is not None]
     return create_agent(
         model=_harness_chat(),
         tools=PART_DRAFTER_TOOLS,
         system_prompt=PART_DRAFTING_SYSTEM_PROMPTS[part],
-        response_format=PartDraftBundle,
+        # ToolStrategy — see section builder note on Converse grammar limits.
+        response_format=ToolStrategy(PartDraftBundle),
         middleware=middleware,
         checkpointer=build_mongodb_saver(),
         name=f"part_{part.lower()}_drafter",

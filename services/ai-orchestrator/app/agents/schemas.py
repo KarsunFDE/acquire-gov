@@ -208,6 +208,11 @@ class DraftSectionRequest(BaseModel):
     set_aside: str | None = None
     contract_type: str | None = None
     agency_supplement: str | None = None
+    # DEMO-REDESIGN-spec §4 — optional richer context (mirrors BatchDraftRequest).
+    period_of_performance: str | None = Field(default=None, max_length=300)
+    place_of_performance: str | None = Field(default=None, max_length=300)
+    eval_approach: str | None = None
+    key_personnel: str | None = Field(default=None, max_length=500)
 
     query: str | None = Field(default=None, max_length=config.MAX_QUERY_CHARS)
     constraints: str | None = Field(default=None, max_length=1000)
@@ -257,6 +262,11 @@ class BatchDraftRequest(BaseModel):
     set_aside: str | None = None
     contract_type: str | None = None       # NEW per ADR-0014 D3 (Part II clause resolution)
     agency_supplement: str | None = None   # NEW per ADR-0014 D3
+    # DEMO-REDESIGN-spec §4 — richer draft context (all optional/soft).
+    period_of_performance: str | None = Field(default=None, max_length=300)
+    place_of_performance: str | None = Field(default=None, max_length=300)
+    eval_approach: str | None = None       # "LPTA" | "TRADEOFF"
+    key_personnel: str | None = Field(default=None, max_length=500)
     user_constraints_by_section: dict[Literal["C", "H", "L", "M"], str] = Field(
         default_factory=dict
     )
@@ -323,8 +333,10 @@ class LMMismatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["l_without_m", "m_without_l", "weak_mapping"]
-    l_instruction: str | None
-    m_factor: str | None
+    # Defaults: model-facing via the critic tool — Nova Lite omits null
+    # fields entirely instead of emitting them.
+    l_instruction: str | None = None
+    m_factor: str | None = None
     severity: Literal["info", "warn", "fail"]
     rationale: str
 
@@ -388,6 +400,12 @@ class ConsistencyReport(BaseModel):
     blocks_submit: bool = False  # Phase 1 = always False
     model_used: str | None = None
     timestamp: datetime
+    # KNOWN ISSUE (2026-06-12): Nova Lite re-invokes the critic tools forever
+    # instead of emitting this report (CRITIC_RECURSION_LIMIT bounds the run).
+    # When the agent fails, callers return a skipped report instead of dying —
+    # the UI must tell the CO to review manually.
+    critic_skipped: bool = False
+    skip_reason: str | None = None
 
 
 class CriticRequest(BaseModel):

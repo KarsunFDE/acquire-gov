@@ -18,7 +18,46 @@ from fastapi.responses import JSONResponse
 
 from app import audit as audit_mod
 from app import config
-from app.agents.schemas import ConsistencyReport, CriticRequest
+from app.agents.schemas import (
+    CLINCoverageReport,
+    ConsistencyReport,
+    CriticRequest,
+    LMAlignmentReport,
+    SetAsideConsistencyReport,
+)
+
+# KNOWN ISSUE (2026-06-12): Nova Lite loops on the critic harness — it re-emits
+# the same three tool calls every turn and never produces the final report.
+# CRITIC_RECURSION_LIMIT bounds the spend; this caveat rides on the skipped
+# report so the wizard tells the CO to review manually.
+CRITIC_SKIP_REASON = (
+    "Consistency critic did not complete (known issue: critic model loops; "
+    "run bounded by CRITIC_RECURSION_LIMIT). No automated L/M, set-aside, or "
+    "CLIN checks were performed - review these sections manually before "
+    "publishing."
+)
+
+
+def _skipped_report(solicitation_id: str, run_id: str) -> ConsistencyReport:
+    """Warn-only placeholder when the critic agent fails (see CRITIC_SKIP_REASON)."""
+    return ConsistencyReport(
+        solicitation_id=solicitation_id,
+        run_id=run_id,
+        lm_alignment=LMAlignmentReport(
+            mismatches=[], overall_severity="info",
+            model="critic_skipped", input_tokens=0, output_tokens=0,
+        ),
+        set_aside_consistency=SetAsideConsistencyReport(
+            mismatches=[], overall_severity="info",
+        ),
+        clin_coverage=CLINCoverageReport(gaps=[], overall_severity="info"),
+        overall_severity="warn",
+        blocks_submit=False,
+        model_used=None,
+        timestamp=datetime.now(timezone.utc),
+        critic_skipped=True,
+        skip_reason=CRITIC_SKIP_REASON,
+    )
 
 log = logging.getLogger("ai-orchestrator.critic")
 
@@ -67,6 +106,7 @@ def _run_critic_agent(
     result = agent.invoke(
         {"messages": [{"role": "user", "content": _critic_user_message(body, run_id)}]},
         config={
+            "recursion_limit": config.CRITIC_RECURSION_LIMIT,
             "configurable": {"tenant_id": tenant_id},
             "tags": ["m1", "consistency-critic", "standalone"],
             "metadata": {
@@ -112,10 +152,13 @@ async def run_critic(
             _run_critic_agent(body, tenant_id=x_tenant_id, request_id=request_id)
         )
     except Exception as exc:  # noqa: BLE001
-        log.error("critic agent failed: %s", exc)
-        return JSONResponse(
-            status_code=500,
-            content={"error": "critic_failure", "request_id": request_id},
+        # Known issue: degrade to a skipped report with an explicit
+        # review-manually caveat instead of 500ing the wizard (warn-only
+        # critic must never block the flow).
+        log.error("critic agent failed: %s; returning critic_skipped report", exc)
+        report = _skipped_report(
+            body.solicitation_id,
+            f"{body.solicitation_id}:critic:{request_id}",
         )
 
     _audit_safe(
@@ -131,6 +174,7 @@ async def run_critic(
         ).hexdigest(),
         overall_severity=report.overall_severity,
         blocks_submit=False,
+        critic_skipped=report.critic_skipped,
     )
 
     return JSONResponse(status_code=200, content=report.model_dump(mode="json"))

@@ -7,11 +7,12 @@ to a resumable parent state. Coordinator thread_id =
 
 Topology::
 
-    START → plan ─┬─ Send(draft_part_I) ──┐
-                  ├─ Send(draft_part_IV) ─┤  (parallel superstep)
-                  ├─ resolve_part_ii ─────┤
-                  └─ pass_through_part_iii┴→ aggregate ─→ critic → END
-                                                   └→ END (interrupted)
+    START → plan ─┬─ Send(draft_part_I) ───┐
+                  ├─ Send(draft_part_IV) ──┤  (parallel superstep)
+                  ├─ resolve_part_ii ──────┤
+                  ├─ pass_through_part_iii ─┤
+                  └─ generate_boilerplate ─┴→ aggregate ─→ critic → END
+                       (D-G,K — spec §2)            └→ END (interrupted)
 """
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ from app.agents.coordinator.nodes import (
     _draft_part_i,
     _draft_part_iv,
     _fan_out_per_part,
+    _generate_boilerplate,
     _pass_through_part_iii,
     _plan,
     _resolve_part_ii,
@@ -43,6 +45,7 @@ def build_coordinator_graph():
     g.add_node("draft_part_IV", _draft_part_iv)
     g.add_node("resolve_part_ii", _resolve_part_ii)
     g.add_node("pass_through_part_iii", _pass_through_part_iii)
+    g.add_node("generate_boilerplate", _generate_boilerplate)
     g.add_node("aggregate", _aggregate)
     g.add_node("critic", _critic)
 
@@ -52,14 +55,17 @@ def build_coordinator_graph():
     g.add_conditional_edges(
         "plan", _fan_out_per_part, ["draft_part_I", "draft_part_IV", "aggregate"]
     )
-    # Programmatic Parts run in the same parallel superstep as the Sends.
+    # Programmatic + boilerplate Parts run in the same parallel superstep as
+    # the Sends (none depend on the agent drafters).
     g.add_edge("plan", "resolve_part_ii")
     g.add_edge("plan", "pass_through_part_iii")
+    g.add_edge("plan", "generate_boilerplate")
 
     g.add_edge("draft_part_I", "aggregate")
     g.add_edge("draft_part_IV", "aggregate")
     g.add_edge("resolve_part_ii", "aggregate")
     g.add_edge("pass_through_part_iii", "aggregate")
+    g.add_edge("generate_boilerplate", "aggregate")
 
     g.add_conditional_edges(
         "aggregate", _route_after_aggregate, {"critic": "critic", END: END}

@@ -23,18 +23,20 @@ CRITIC_TOOLS = [
 
 def _critic_harness_chat():
     """Harness model factory — tests monkeypatch this."""
-    from langchain_aws import ChatBedrockConverse  # noqa: PLC0415 — lazy
+    from app.agents.model_factory import build_chat  # noqa: PLC0415 — lazy
 
-    return ChatBedrockConverse(model=config.BEDROCK_CRITIC_MODEL)
+    return build_chat(config.BEDROCK_CRITIC_MODEL, max_tokens=config.BEDROCK_CRITIC_MAX_TOKENS)
 
 
 def build_consistency_critic_agent():
     from langchain.agents import create_agent  # noqa: PLC0415 — lazy
+    from langchain.agents.structured_output import ToolStrategy  # noqa: PLC0415
 
     return create_agent(
         model=_critic_harness_chat(),
         tools=CRITIC_TOOLS,
         system_prompt=CONSISTENCY_CRITIC_SYSTEM_PROMPT,
-        response_format=ConsistencyReport,
+        # ToolStrategy — see section builder note on Converse grammar limits.
+        response_format=ToolStrategy(ConsistencyReport),
         name="consistency_critic",
     )

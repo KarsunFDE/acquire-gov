@@ -88,6 +88,10 @@ def env(monkeypatch):
     }
     monkeypatch.setattr(nodes_mod, "_build_part_agent", lambda part: children[part])
     monkeypatch.setattr(audit_mod, "write_audit_log", lambda *a, **k: "id")
+    # Boilerplate (D-G/K) runs as a real coordinator node — pin it to the
+    # template path (no Bedrock) so these graph tests stay hermetic + fast.
+    from app import config as _cfg_mod
+    monkeypatch.setattr(_cfg_mod, "AI_STUB_MODE", True)
     # Pin the critic node to the deterministic stub — the real critic agent
     # (Phase 4) is covered by tests/agents/critic/ + tests/api/test_critic.py.
     monkeypatch.setattr(nodes_mod, "_run_critic", nodes_mod._stub_consistency_report)
@@ -134,10 +138,25 @@ def test_full_batch_completes_with_four_parts(env):
     # Part II carries the deterministic Section I clause list.
     clause_list = bundle.parts["II"].sections["I"]
     assert any(c.citation == "52.219-27" for c in clause_list.clauses_by_reference)
-    # Critic stub ran (no interrupts) — info severity, never blocks submit.
+    # Critic skipped-fallback ran (no interrupts) — warn + critic_skipped
+    # caveat (known issue: critic model loops), never blocks submit.
     assert bundle.consistency_report is not None
-    assert bundle.consistency_report.overall_severity == "info"
+    assert bundle.consistency_report.overall_severity == "warn"
+    assert bundle.consistency_report.critic_skipped is True
     assert bundle.consistency_report.blocks_submit is False
+
+
+def test_boilerplate_sections_generated_and_merged(env):
+    """DEMO-REDESIGN-spec §2 — D-G fold into Part I, K into Part IV, alongside
+    the agent-drafted C/H and L/M."""
+    graph = graph_mod.build_coordinator_graph()
+    result = graph.invoke(_state(), config=_cfg("t-boiler"))
+    bundle = result["bundle"]
+    assert set(bundle.parts["I"].sections) >= {"C", "H", "D", "E", "F", "G"}
+    assert "K" in bundle.parts["IV"].sections
+    # Boilerplate K reflects the SDVOSB set-aside (52.219-27 + 52.219-14).
+    k_text = bundle.parts["IV"].sections["K"].section_text or ""
+    assert "52.219-27" in k_text and "52.219-14" in k_text
 
 
 def test_pre_owned_sections_skip_their_part(env):
@@ -147,8 +166,15 @@ def test_pre_owned_sections_skip_their_part(env):
         config=_cfg("t-skip"),
     )
     bundle = result["bundle"]
-    assert "I" not in bundle.parts          # Part I fully owned → never drafted
-    assert env["I"].invocations == []       # zero spend on the owned Part
+    # Part I agent never ran — C/H pre-owned, zero LLM spend on the owned Part.
+    assert env["I"].invocations == []
+    # C/H are NOT in the bundle (human-owned). Part I may still exist purely from
+    # the generated boilerplate (D-G), which the agent path never touches
+    # (DEMO-REDESIGN-spec §2).
+    if "I" in bundle.parts:
+        assert "C" not in bundle.parts["I"].sections
+        assert "H" not in bundle.parts["I"].sections
+        assert set(bundle.parts["I"].sections) <= {"D", "E", "F", "G"}
     assert bundle.parts["IV"].kind == "llm_drafted"
     assert bundle.overall_outcome == "batch_completed"
 

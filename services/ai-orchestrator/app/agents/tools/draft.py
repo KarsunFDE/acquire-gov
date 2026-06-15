@@ -72,9 +72,9 @@ class _MultiDraftPayload(BaseModel):
 
 def _draft_chat():
     """Factory — tests monkeypatch this."""
-    from langchain_aws import ChatBedrockConverse  # noqa: PLC0415 — lazy
+    from app.agents.model_factory import build_chat  # noqa: PLC0415 — lazy
 
-    return ChatBedrockConverse(model=app_config.BEDROCK_GEN_MODEL)
+    return build_chat(app_config.BEDROCK_GEN_MODEL, max_tokens=app_config.BEDROCK_GEN_MAX_TOKENS)
 
 
 def _wrap_evidence(evidence: RetrievedEvidence) -> str:

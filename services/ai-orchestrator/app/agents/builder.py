@@ -36,21 +36,26 @@ SECTION_DRAFTER_TOOLS = [
 
 def _harness_chat():
     """Harness model factory — tests monkeypatch this."""
-    from langchain_aws import ChatBedrockConverse  # noqa: PLC0415 — lazy
+    from app.agents.model_factory import build_chat  # noqa: PLC0415 — lazy
 
-    return ChatBedrockConverse(model=config.BEDROCK_GEN_MODEL)
+    return build_chat(config.BEDROCK_GEN_MODEL, max_tokens=config.BEDROCK_GEN_MAX_TOKENS)
 
 
 def build_section_drafter_agent():
     """Construct the v1.0 agent per ADR-0012 D1/D3/D4/D6."""
     from langchain.agents import create_agent  # noqa: PLC0415 — lazy
+    from langchain.agents.structured_output import ToolStrategy  # noqa: PLC0415
 
     middleware = [m for m in (build_hitl_middleware(),) if m is not None]
     return create_agent(
         model=_harness_chat(),
         tools=SECTION_DRAFTER_TOOLS,
         system_prompt=SECTION_DRAFTING_SYSTEM_PROMPT,
-        response_format=FinalDraftSection,            # D3 — structured output
+        # D3 — structured output. ToolStrategy (not provider-native): Claude on
+        # Converse compiles a constrained-decoding grammar over ALL tool schemas
+        # for native structured output and rejects this agent's six-tool set
+        # with "compiled grammar is too large".
+        response_format=ToolStrategy(FinalDraftSection),
         middleware=middleware,                        # D6 (interrupts: Phase 2)
         checkpointer=build_mongodb_saver(),           # D4
         name="section_drafter",                       # LangSmith run name

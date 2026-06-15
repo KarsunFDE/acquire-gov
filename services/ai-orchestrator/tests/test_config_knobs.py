@@ -12,9 +12,9 @@ import pytest
 from app import config
 
 EXPECTED_DEFAULTS = {
-    "BEDROCK_EXTRACT_MODEL": "amazon.nova-lite-v1:0",
+    "BEDROCK_EXTRACT_MODEL": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
     "BEDROCK_EXTRACT_MAX_RETRIES": 1,
-    "BEDROCK_CRITIC_MODEL": "amazon.nova-lite-v1:0",
+    "BEDROCK_CRITIC_MODEL": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
     "SET_ASIDE_STRICT_EXTRA": False,
     "GATE_PASS_THRESHOLD": 0.55,
     "GATE_WITHHOLD_THRESHOLD": 0.40,

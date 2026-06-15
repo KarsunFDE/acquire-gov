@@ -81,6 +81,10 @@ def _initial_state(
         "set_aside": body.set_aside,
         "contract_type": body.contract_type,
         "agency_supplement": body.agency_supplement,
+        "period_of_performance": body.period_of_performance,
+        "place_of_performance": body.place_of_performance,
+        "eval_approach": body.eval_approach,
+        "key_personnel": body.key_personnel,
         "user_constraints_by_section": dict(body.user_constraints_by_section),
         "provenances": dict(body.provenances),
         "part_iii_attachments": list(body.part_iii_attachments),
@@ -135,6 +139,14 @@ def _run_coordinator(
 
     Tests monkeypatch this seam for handler-contract tests.
     """
+    # DEMO-REDESIGN-spec §0 — demo-day stub: return a full canned bundle without
+    # touching Bedrock or the graph. Flip AI_STUB_MODE off for live generations.
+    if config.AI_STUB_MODE:
+        from app.stub_drafts import stub_bundle  # noqa: PLC0415
+
+        log.info("AI_STUB_MODE on — returning canned batch bundle (no Bedrock)")
+        return stub_bundle(body, request_id=request_id, batch_run_id=batch_run_id)
+
     from app.agents.coordinator.graph import build_coordinator_graph  # noqa: PLC0415
 
     graph = build_coordinator_graph()

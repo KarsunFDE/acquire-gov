@@ -130,11 +130,20 @@ def test_invalid_body_422(client: TestClient) -> None:
     assert resp.status_code == 422
 
 
-def test_critic_failure_500(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_critic_failure_returns_skipped_report(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Known issue (2026-06-12): critic model loops; agent failure degrades to
+    a 200 critic_skipped report with a review-manually caveat — the warn-only
+    critic must never 500 the wizard."""
     def _boom(body, *, tenant_id, request_id):
         raise RuntimeError("nova outage")
 
     monkeypatch.setattr(critic_mod, "_run_critic_agent", _boom)
     resp = client.post("/draft-solicitation/critic", headers=HEADERS, json=BODY)
-    assert resp.status_code == 500
-    assert resp.json()["error"] == "critic_failure"
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["critic_skipped"] is True
+    assert payload["overall_severity"] == "warn"
+    assert payload["blocks_submit"] is False
+    assert "review" in payload["skip_reason"].lower()
