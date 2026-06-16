@@ -29,4 +29,11 @@ jobs:
             echo "::error::PR Summary is empty. Add a Claude-drafted summary of your change (see .github/pull_request_template.md)."
             exit 1
           fi
-          echo "Summary present ✔"
+          # Require the Summary to name the files/areas changed — at least one
+          # `path`-style token (backtick-quoted). Forces the "Files touched" detail
+          # instead of a vague one-liner. Comments stripped first.
+          if ! printf '%s' "$summary" | sed 's/<!--.*-->//g' | grep -q '`[^`]\{1,\}`'; then
+            echo "::error::PR Summary must name the files/areas this PR changes — list each as \`path/to/file\` under 'Files touched' (see .github/pull_request_template.md)."
+            exit 1
+          fi
+          echo "Summary present + names files ✔"
